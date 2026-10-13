@@ -42,18 +42,18 @@ class StoreScreenshots {
     )
 
     @Test
-    fun plan_overview() = shoot(Tool.SELECT) { null }
+    fun shot1_plan_overview() = shoot(Tool.SELECT) { null }
 
     @Test
-    fun wall_selected() = shoot(Tool.SELECT) { Selection(Kind.WALL, "w_mid") }
+    fun shot2_wall_selected() = shoot(Tool.SELECT) { Selection(Kind.WALL, "w_mid") }
 
     @Test
-    fun room_selected_dark() = shoot(Tool.SELECT, dark = true) { p ->
+    fun shot3_room_selected_dark() = shoot(Tool.SELECT, dark = true) { p ->
         Selection(Kind.ROOM, p.rooms.first { pointInPolygon(P(600.0, 175.0), it.polygon) }.id)
     }
 
     @Test
-    fun door_tool() = shoot(Tool.DOOR) { Selection(Kind.DOOR, "d_bed") }
+    fun shot4_door_tool() = shoot(Tool.DOOR) { Selection(Kind.DOOR, "d_bed") }
 
     private fun shoot(tool: Tool, dark: Boolean = false, select: (Project) -> Selection?) {
         val vm = PlanViewModel(Application())

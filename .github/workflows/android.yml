@@ -29,10 +29,3 @@ jobs:
           name: floor-planner-debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
-      - name: Render Play Store screenshots
-        run: ./gradlew --no-daemon recordPaparazziDebug
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: store-screenshots
-          path: app/src/test/snapshots/images/*.png
