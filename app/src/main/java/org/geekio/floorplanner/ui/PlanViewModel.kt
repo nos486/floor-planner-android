@@ -81,11 +81,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private var saveJob: Job? = null
 
     init {
-        if (autosaveFile?.exists() == true) {
-            runCatching { autosaveFile.readText() }.getOrNull()
-                ?.let { ProjectIO.fromJson(it) }
-                ?.let { project = it }
-        }
+        autosaveFile?.takeIf { it.exists() }
+            ?.let { file -> runCatching { file.readText() }.getOrNull() }
+            ?.let { ProjectIO.fromJson(it) }
+            ?.let { project = it }
         if (project.walls.isNotEmpty()) tool = Tool.SELECT
     }
 
