@@ -1,5 +1,8 @@
 package org.geekio.floorplanner.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,6 +63,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+const val PRIVACY_POLICY_URL = "https://github.com/nos486/floor-planner-android/blob/main/PRIVACY.md"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlanScreen(vm: PlanViewModel) {
@@ -78,7 +83,7 @@ fun PlanScreen(vm: PlanViewModel) {
         }
     }
 
-    fun write(uri: android.net.Uri?, content: String) {
+    fun write(uri: Uri?, content: String) {
         uri ?: return
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
@@ -151,6 +156,14 @@ fun PlanScreen(vm: PlanViewModel) {
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.privacy_policy)) }, onClick = {
+                                menuOpen = false
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_POLICY_URL)))
+                                } catch (e: ActivityNotFoundException) {
+                                    vm.message = R.string.msg_no_browser
+                                }
                             })
                         }
                     }

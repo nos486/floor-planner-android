@@ -3,8 +3,6 @@
 A simple 2D floor-plan app for Android, based on the [FloorPlanner 2D web app](https://github.com/nos486/floor-planner).
 Draw walls with your finger, add doors and windows, and see the area of every room as you draw.
 
-نسخه اندروید برنامه [Floor Planner](https://github.com/nos486/floor-planner): دیوار بکشید، در و پنجره اضافه کنید و مساحت هر اتاق را همان لحظه ببینید. رابط برنامه روی گوشی‌های فارسی به‌صورت خودکار فارسی است.
-
 ## Features
 
 - **Walls**: drag on the grid to draw a wall. Ends snap to other walls, to the grid and to 0°/45°/90° angles, with a live length tag.
@@ -48,7 +46,7 @@ and publishes them on the [Releases](../../releases) page as `v0.1.<build number
 
 ## Google Play
 
-- Store listing texts, icon and feature graphic (English and Persian) are in `fastlane/metadata/android/`.
+- Store listing texts, icon and feature graphic are in `fastlane/metadata/android/`.
 - Privacy policy: [PRIVACY.md](PRIVACY.md).
 - Upload the first `.aab` from a GitHub Release by hand in Play Console. After that, add a
   `PLAY_SERVICE_ACCOUNT_JSON` secret (a Google Cloud service account with release access in Play Console) and
