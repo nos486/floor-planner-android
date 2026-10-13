@@ -1,6 +1,6 @@
-package com.nos486.floorplanner.core
+package org.geekio.floorplanner.core
 
-import com.nos486.floorplanner.model.Project
+import org.geekio.floorplanner.model.Project
 import kotlinx.serialization.json.Json
 import java.util.Locale
 

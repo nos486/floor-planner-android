@@ -1,6 +1,6 @@
-package com.nos486.floorplanner.model
+package org.geekio.floorplanner.model
 
-import com.nos486.floorplanner.core.P
+import org.geekio.floorplanner.core.P
 import kotlinx.serialization.Serializable
 
 /**

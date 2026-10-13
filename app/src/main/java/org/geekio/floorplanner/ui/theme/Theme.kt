@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.ui.theme
+package org.geekio.floorplanner.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

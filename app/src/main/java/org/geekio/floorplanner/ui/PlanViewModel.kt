@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.ui
+package org.geekio.floorplanner.ui
 
 import android.app.Application
 import androidx.compose.runtime.getValue
@@ -8,17 +8,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.nos486.floorplanner.R
-import com.nos486.floorplanner.core.Kind
-import com.nos486.floorplanner.core.P
-import com.nos486.floorplanner.core.PlanOps
-import com.nos486.floorplanner.core.ProjectIO
-import com.nos486.floorplanner.core.Selection
-import com.nos486.floorplanner.core.SnapOptions
-import com.nos486.floorplanner.core.SnapType
-import com.nos486.floorplanner.core.Snapper
-import com.nos486.floorplanner.model.Project
-import com.nos486.floorplanner.model.Wall
+import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.P
+import org.geekio.floorplanner.core.PlanOps
+import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.Selection
+import org.geekio.floorplanner.core.SnapOptions
+import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.Snapper
+import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.Wall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

@@ -38,3 +38,10 @@ Every push and pull request is built by GitHub Actions, and the debug APK is att
 | `app/src/main/java/.../model` | Project file model (walls, doors, windows, rooms) |
 | `app/src/main/java/.../core` | Pure Kotlin logic: geometry, room detection, snapping, edit operations, JSON/SVG |
 | `app/src/main/java/.../ui` | Jetpack Compose UI: canvas drawing, gestures, inspector panel, view model |
+
+## Releases
+
+Every push to `main` runs the `Release` workflow: it builds a signed release APK and publishes it on the
+[Releases](../../releases) page as `v0.1.<build number>`. Signing uses these repository secrets
+(Settings > Secrets and variables > Actions): `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The keystore is never stored in the repository.

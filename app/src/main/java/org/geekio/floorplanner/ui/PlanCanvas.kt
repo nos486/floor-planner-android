@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.ui
+package org.geekio.floorplanner.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
@@ -25,12 +25,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.nos486.floorplanner.core.Kind
-import com.nos486.floorplanner.core.P
-import com.nos486.floorplanner.core.PlanOps
-import com.nos486.floorplanner.core.SnapType
-import com.nos486.floorplanner.model.Door
-import com.nos486.floorplanner.model.PlanWindow
+import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.P
+import org.geekio.floorplanner.core.PlanOps
+import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.PlanWindow
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.ceil

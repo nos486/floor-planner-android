@@ -1,8 +1,8 @@
-package com.nos486.floorplanner.core
+package org.geekio.floorplanner.core
 
-import com.nos486.floorplanner.model.Door
-import com.nos486.floorplanner.model.Project
-import com.nos486.floorplanner.model.Wall
+import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.Wall
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -23,7 +23,7 @@ class PlanLogicTest {
 
     @Test
     fun detectsSingleRoomArea() {
-        val rooms = RoomDetector.detect(box, com.nos486.floorplanner.model.Scale())
+        val rooms = RoomDetector.detect(box, org.geekio.floorplanner.model.Scale())
         assertEquals(1, rooms.size)
         assertEquals(12.0, rooms[0].areaM2, 0.001)
         assertEquals("Room 1", rooms[0].name)
@@ -32,13 +32,13 @@ class PlanLogicTest {
     @Test
     fun wallDrawnInReverseOrderStillDetected() {
         val reversed = box.map { Wall.create(it.id, it.b, it.a, 20.0) }.reversed()
-        assertEquals(12.0, RoomDetector.detect(reversed, com.nos486.floorplanner.model.Scale()).single().areaM2, 0.001)
+        assertEquals(12.0, RoomDetector.detect(reversed, org.geekio.floorplanner.model.Scale()).single().areaM2, 0.001)
     }
 
     @Test
     fun interiorWallWithTJunctionsSplitsIntoTwoRooms() {
         val walls = box + wall("w5", 150.0, 0.0, 150.0, 300.0)
-        val rooms = RoomDetector.detect(walls, com.nos486.floorplanner.model.Scale())
+        val rooms = RoomDetector.detect(walls, org.geekio.floorplanner.model.Scale())
         assertEquals(2, rooms.size)
         assertEquals(listOf(4.5, 7.5), rooms.map { it.areaM2 })
     }
@@ -47,14 +47,14 @@ class PlanLogicTest {
     fun crossingWallsAreSplit() {
         // A plus-shaped pair of walls through the box: 4 rooms.
         val walls = box + wall("w5", 200.0, -50.0, 200.0, 350.0) + wall("w6", -50.0, 150.0, 450.0, 150.0)
-        val rooms = RoomDetector.detect(walls, com.nos486.floorplanner.model.Scale())
+        val rooms = RoomDetector.detect(walls, org.geekio.floorplanner.model.Scale())
         assertEquals(4, rooms.size)
         rooms.forEach { assertEquals(3.0, it.areaM2, 0.001) }
     }
 
     @Test
     fun openShapeHasNoRooms() {
-        assertTrue(RoomDetector.detect(box.dropLast(1), com.nos486.floorplanner.model.Scale()).isEmpty())
+        assertTrue(RoomDetector.detect(box.dropLast(1), org.geekio.floorplanner.model.Scale()).isEmpty())
     }
 
     @Test

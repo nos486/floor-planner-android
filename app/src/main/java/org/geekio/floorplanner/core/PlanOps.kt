@@ -1,10 +1,10 @@
-package com.nos486.floorplanner.core
+package org.geekio.floorplanner.core
 
-import com.nos486.floorplanner.model.Door
-import com.nos486.floorplanner.model.Opening
-import com.nos486.floorplanner.model.PlanWindow
-import com.nos486.floorplanner.model.Project
-import com.nos486.floorplanner.model.Wall
+import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Opening
+import org.geekio.floorplanner.model.PlanWindow
+import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.Wall
 
 /** Geometry of an opening (door/window) resolved against its wall. */
 data class OpeningGeometry(

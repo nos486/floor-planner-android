@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.ui
+package org.geekio.floorplanner.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,8 +33,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.nos486.floorplanner.R
-import com.nos486.floorplanner.core.Kind
+import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Kind
 
 /** Bottom panel with the properties of the selected wall / door / window / room. */
 @Composable

@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.core
+package org.geekio.floorplanner.core
 
 import kotlin.math.abs
 import kotlin.math.hypot

@@ -1,13 +1,13 @@
-package com.nos486.floorplanner
+package org.geekio.floorplanner
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.nos486.floorplanner.ui.PlanScreen
-import com.nos486.floorplanner.ui.PlanViewModel
-import com.nos486.floorplanner.ui.theme.FloorPlannerTheme
+import org.geekio.floorplanner.ui.PlanScreen
+import org.geekio.floorplanner.ui.PlanViewModel
+import org.geekio.floorplanner.ui.theme.FloorPlannerTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: PlanViewModel by viewModels()

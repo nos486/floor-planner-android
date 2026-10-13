@@ -1,4 +1,4 @@
-package com.nos486.floorplanner.ui
+package org.geekio.floorplanner.ui
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown

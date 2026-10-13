@@ -1,8 +1,8 @@
-package com.nos486.floorplanner.core
+package org.geekio.floorplanner.core
 
-import com.nos486.floorplanner.model.Room
-import com.nos486.floorplanner.model.Scale
-import com.nos486.floorplanner.model.Wall
+import org.geekio.floorplanner.model.Room
+import org.geekio.floorplanner.model.Scale
+import org.geekio.floorplanner.model.Wall
 import kotlin.math.abs
 import kotlin.math.atan2
 
