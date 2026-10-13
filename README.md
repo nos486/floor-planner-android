@@ -22,7 +22,7 @@ Draw walls with your finger, add doors and windows, and see the area of every ro
 
 ## Build
 
-Requires JDK 17 and the Android SDK (API 35).
+Requires JDK 17 and the Android SDK (API 36).
 
 ```bash
 ./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
@@ -41,7 +41,16 @@ Every push and pull request is built by GitHub Actions, and the debug APK is att
 
 ## Releases
 
-Every push to `main` runs the `Release` workflow: it builds a signed release APK and publishes it on the
-[Releases](../../releases) page as `v0.1.<build number>`. Signing uses these repository secrets
+Every push to `main` runs the `Release` workflow: it builds a signed release APK and AAB (Android App Bundle)
+and publishes them on the [Releases](../../releases) page as `v0.1.<build number>`. Signing uses these repository secrets
 (Settings > Secrets and variables > Actions): `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The keystore is never stored in the repository.
+
+## Google Play
+
+- Store listing texts, icon and feature graphic (English and Persian) are in `fastlane/metadata/android/`.
+- Privacy policy: [PRIVACY.md](PRIVACY.md).
+- Upload the first `.aab` from a GitHub Release by hand in Play Console. After that, add a
+  `PLAY_SERVICE_ACCOUNT_JSON` secret (a Google Cloud service account with release access in Play Console) and
+  every release is uploaded to the `internal` track as a draft. Repository variables `PLAY_TRACK`
+  (`internal`, `alpha`, `beta`, `production`) and `PLAY_RELEASE_STATUS` (`draft`, `completed`) change that.

@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "org.geekio.floorplanner"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "org.geekio.floorplanner"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         // CI passes these for release builds; local builds use the defaults.
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
