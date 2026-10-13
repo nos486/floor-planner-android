@@ -39,6 +39,8 @@ class StoreScreenshots {
     val paparazzi = Paparazzi(
         // 9:16 phone screenshot, as Google Play requires an aspect ratio of at most 2:1.
         deviceConfig = DeviceConfig.PIXEL_5.copy(screenHeight = 1920, screenWidth = 1080),
+        // Keep full 1080x1920 instead of Paparazzi's default 1000px downscale.
+        useDeviceResolution = true,
     )
 
     @Test
