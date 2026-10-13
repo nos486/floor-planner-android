@@ -1,0 +1,104 @@
+package com.nos486.floorplanner.core
+
+import com.nos486.floorplanner.model.Project
+import kotlinx.serialization.json.Json
+import java.util.Locale
+
+/** JSON (web-app compatible) and SVG export. */
+object ProjectIO {
+    private val json = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+        encodeDefaults = true
+        coerceInputValues = true
+    }
+
+    fun toJson(p: Project): String = json.encodeToString(Project.serializer(), p)
+
+    /** Parses a project file; returns null when it isn't a valid floor plan. */
+    fun fromJson(text: String): Project? = try {
+        val p = json.decodeFromString(Project.serializer(), text)
+        val walls = p.walls.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } }
+        val wallIds = walls.map { it.id }.toSet()
+        PlanOps.withRooms(
+            p.copy(
+                scale = p.scale.copy(
+                    unitsPerMeter = p.scale.unitsPerMeter.takeIf { it > 0 } ?: 100.0,
+                    gridCm = p.scale.gridCm.takeIf { it > 0 } ?: 20.0,
+                ),
+                walls = walls,
+                doors = p.doors.filter { it.wallId in wallIds },
+                windows = p.windows.filter { it.wallId in wallIds },
+                rooms = p.rooms.filter { it.centroid.size >= 2 },
+            )
+        )
+    } catch (e: Exception) {
+        null
+    }
+
+    fun fileName(p: Project, ext: String): String {
+        val base = p.projectName.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), "_").trim('_')
+        return "${base.ifEmpty { "floor_plan" }}.$ext"
+    }
+
+    private val roomColors = listOf("#4f8cff", "#36b37e", "#ffab00", "#ff5630", "#6554c0", "#00b8d9")
+
+    private fun n(v: Double) = String.format(Locale.US, "%.1f", v)
+
+    private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+    fun toSvg(p: Project): String {
+        val pts = p.walls.flatMap { listOf(it.a, it.b) }
+        val margin = 100.0
+        val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
+        val minY = (pts.minOfOrNull { it.y } ?: 0.0) - margin
+        val maxX = (pts.maxOfOrNull { it.x } ?: 500.0) + margin
+        val maxY = (pts.maxOfOrNull { it.y } ?: 500.0) + margin
+        val w = maxX - minX
+        val h = maxY - minY
+        val upm = p.scale.unitsPerMeter
+        val sb = StringBuilder()
+        sb.append("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(minX)} ${n(minY)} ${n(w)} ${n(h)}" width="${n(w)}" height="${n(h)}" font-family="sans-serif">""").append('\n')
+        sb.append("""<rect x="${n(minX)}" y="${n(minY)}" width="${n(w)}" height="${n(h)}" fill="#ffffff"/>""").append('\n')
+
+        p.rooms.forEachIndexed { i, r ->
+            val poly = r.polygon.joinToString(" ") { "${n(it.x)},${n(it.y)}" }
+            sb.append("""<polygon points="$poly" fill="${roomColors[i % roomColors.size]}" fill-opacity="0.15"/>""").append('\n')
+        }
+        for (wall in p.walls) {
+            sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
+        }
+        for (door in p.doors) {
+            val wall = p.wall(door.wallId) ?: continue
+            val g = PlanOps.openingGeometry(wall, door) ?: continue
+            val s = PlanOps.doorSwing(g, door)
+            sb.append("""<line x1="${n(g.start.x)}" y1="${n(g.start.y)}" x2="${n(g.end.x)}" y2="${n(g.end.y)}" stroke="#ffffff" stroke-width="${n(wall.thickness + 2)}"/>""").append('\n')
+            sb.append("""<line x1="${n(s.hinge.x)}" y1="${n(s.hinge.y)}" x2="${n(s.leafEnd.x)}" y2="${n(s.leafEnd.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
+            val sweep = if (s.clockwise) 1 else 0
+            sb.append("""<path d="M ${n(s.strike.x)} ${n(s.strike.y)} A ${n(s.radius)} ${n(s.radius)} 0 0 $sweep ${n(s.leafEnd.x)} ${n(s.leafEnd.y)}" fill="none" stroke="#2b2f36" stroke-width="1.5" stroke-dasharray="6 4"/>""").append('\n')
+        }
+        for (win in p.windows) {
+            val wall = p.wall(win.wallId) ?: continue
+            val g = PlanOps.openingGeometry(wall, win) ?: continue
+            sb.append("""<line x1="${n(g.start.x)}" y1="${n(g.start.y)}" x2="${n(g.end.x)}" y2="${n(g.end.y)}" stroke="#ffffff" stroke-width="${n(wall.thickness + 2)}"/>""").append('\n')
+            for (k in listOf(-0.3, 0.3)) {
+                val o = g.normal * (wall.thickness / 2 * k)
+                sb.append("""<line x1="${n(g.start.x + o.x)}" y1="${n(g.start.y + o.y)}" x2="${n(g.end.x + o.x)}" y2="${n(g.end.y + o.y)}" stroke="#2b7bd6" stroke-width="2"/>""").append('\n')
+            }
+        }
+        for (wall in p.walls) {
+            if (wall.length < 40) continue
+            val mid = (wall.a + wall.b) * 0.5
+            val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
+            val label = String.format(Locale.US, "%.2f m", wall.length / upm)
+            sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
+        }
+        for (r in p.rooms) {
+            val c = r.center ?: continue
+            sb.append("""<text x="${n(c.x)}" y="${n(c.y - 8)}" font-size="16" font-weight="bold" fill="#1f2937" text-anchor="middle">${esc(r.name)}</text>""").append('\n')
+            sb.append("""<text x="${n(c.x)}" y="${n(c.y + 12)}" font-size="13" fill="#4b5563" text-anchor="middle">${String.format(Locale.US, "%.2f m²", r.areaM2)}</text>""").append('\n')
+        }
+        sb.append("</svg>\n")
+        return sb.toString()
+    }
+}

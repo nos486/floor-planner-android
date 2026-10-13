@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">نقشه‌کش</string>
+    <string name="default_project_name">نقشه خانه من</string>
+    <string name="project_name">نام پروژه</string>
+    <string name="total_area">مجموع %1$s متر مربع · %2$d اتاق</string>
+
+    <string name="undo">برگرداندن</string>
+    <string name="redo">انجام دوباره</string>
+    <string name="fit">نمایش کل نقشه</string>
+    <string name="more">بیشتر</string>
+    <string name="new_project">پروژه جدید</string>
+    <string name="new_project_warning">نقشه فعلی پاک می‌شود (با برگرداندن قابل بازیابی است).</string>
+    <string name="open_json">باز کردن پروژه (JSON)</string>
+    <string name="save_json">ذخیره پروژه (JSON)</string>
+    <string name="export_svg">خروجی تصویر (SVG)</string>
+    <string name="settings">تنظیمات</string>
+
+    <string name="tool_select">انتخاب</string>
+    <string name="tool_wall">دیوار</string>
+    <string name="tool_door">در</string>
+    <string name="tool_window">پنجره</string>
+
+    <string name="wall">دیوار</string>
+    <string name="door">در</string>
+    <string name="window">پنجره</string>
+    <string name="room">اتاق</string>
+    <string name="length">طول</string>
+    <string name="length_m">طول دیوار (متر)</string>
+    <string name="thickness">ضخامت</string>
+    <string name="width">عرض</string>
+    <string name="name">نام</string>
+    <string name="room_name">نام اتاق</string>
+    <string name="area">مساحت</string>
+    <string name="split_wall">نصف کردن دیوار</string>
+    <string name="flip_side">تغییر جهت باز شدن</string>
+    <string name="flip_hinge">تغییر سمت لولا</string>
+    <string name="delete">حذف</string>
+    <string name="close">بستن</string>
+
+    <string name="show_grid">نمایش شبکه</string>
+    <string name="snap_grid">چسبیدن به شبکه</string>
+    <string name="snap_endpoints">چسبیدن به سر دیوارها</string>
+    <string name="snap_angles">چسبیدن به زاویه‌های ۴۵ درجه</string>
+    <string name="grid_size">اندازه شبکه</string>
+    <string name="default_thickness">ضخامت دیوار جدید</string>
+    <string name="default_door">عرض در جدید</string>
+    <string name="default_window">عرض پنجره جدید</string>
+
+    <string name="hint_start">برای کشیدن دیوار روی صفحه بکشید. با دو انگشت جابه‌جا و بزرگ‌نمایی کنید.</string>
+    <string name="hint_wall">برای کشیدن دیوار، انگشت را روی صفحه بکشید</string>
+    <string name="hint_opening">روی دیواری که به اندازه کافی بلند است بزنید</string>
+    <string name="msg_wall_too_short">دیوار خیلی کوتاه است</string>
+    <string name="msg_saved">ذخیره شد</string>
+    <string name="msg_save_failed">ذخیره فایل انجام نشد</string>
+    <string name="msg_open_failed">این فایل یک نقشه معتبر نیست</string>
+</resources>

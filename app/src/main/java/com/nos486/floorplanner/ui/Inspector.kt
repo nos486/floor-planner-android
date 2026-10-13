@@ -1,0 +1,170 @@
+package com.nos486.floorplanner.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.nos486.floorplanner.R
+import com.nos486.floorplanner.core.Kind
+
+/** Bottom panel with the properties of the selected wall / door / window / room. */
+@Composable
+fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
+    val sel = vm.selection ?: return
+    val p = vm.project
+    val upm = p.scale.unitsPerMeter
+
+    val title: String
+    val body: @Composable () -> Unit
+    when (sel.kind) {
+        Kind.WALL -> {
+            val wall = p.wall(sel.id) ?: return
+            title = stringResource(R.string.wall)
+            val lengthTitle = stringResource(R.string.length_m)
+            body = {
+                LabeledRow(stringResource(R.string.length)) {
+                    TextButton(onClick = {
+                        openDialog(ScreenDialog.Number(lengthTitle, fmtPlain(wall.length / upm)) { vm.setWallLengthMeters(wall.id, it) })
+                    }) {
+                        Text(fmt(wall.length / upm) + " m")
+                        Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
+                    }
+                }
+                Stepper(stringResource(R.string.thickness), wall.thickness, 5.0, 5.0, 100.0) { vm.setWallThickness(wall.id, it) }
+                OutlinedButton(onClick = { vm.splitWall(wall.id) }) {
+                    Icon(Icons.Filled.ContentCut, null)
+                    Text(stringResource(R.string.split_wall), Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+        Kind.DOOR -> {
+            val door = p.door(sel.id) ?: return
+            title = stringResource(R.string.door)
+            body = {
+                Stepper(stringResource(R.string.width), door.width, 5.0, 30.0, 400.0) { vm.setOpeningWidth(Kind.DOOR, door.id, it) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { vm.flipDoorSide(door.id) }) {
+                        Icon(Icons.Filled.SwapVert, null)
+                        Text(stringResource(R.string.flip_side), Modifier.padding(start = 8.dp))
+                    }
+                    OutlinedButton(onClick = { vm.flipDoorHinge(door.id) }) {
+                        Icon(Icons.Filled.SwapHoriz, null)
+                        Text(stringResource(R.string.flip_hinge), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+        Kind.WINDOW -> {
+            val win = p.window(sel.id) ?: return
+            title = stringResource(R.string.window)
+            body = {
+                Stepper(stringResource(R.string.width), win.width, 10.0, 30.0, 1000.0) { vm.setOpeningWidth(Kind.WINDOW, win.id, it) }
+            }
+        }
+        Kind.ROOM -> {
+            val room = p.room(sel.id) ?: return
+            title = stringResource(R.string.room)
+            val renameTitle = stringResource(R.string.room_name)
+            body = {
+                LabeledRow(stringResource(R.string.name)) {
+                    TextButton(onClick = {
+                        openDialog(ScreenDialog.Text(renameTitle, room.name) { vm.renameRoom(room.id, it) })
+                    }) {
+                        Text(room.name)
+                        Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
+                    }
+                }
+                LabeledRow(stringResource(R.string.area)) {
+                    Text(fmt(room.areaM2) + " m²", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+                }
+            }
+        }
+    }
+
+    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (sel.kind != Kind.ROOM) {
+                    IconButton(onClick = vm::deleteSelected) {
+                        Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+                IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+            }
+            body()
+        }
+    }
+}
+
+/** A "label  [-] value cm [+]" row. */
+@Composable
+fun Stepper(label: String, value: Double, step: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
+    LabeledRow(label) {
+        IconButton(onClick = { onChange((value - step).coerceIn(min, max)) }, enabled = value > min) {
+            Icon(Icons.Filled.Remove, null)
+        }
+        Text(fmt(value, 0) + " cm", Modifier.widthIn(min = 64.dp), textAlign = TextAlign.Center)
+        IconButton(onClick = { onChange((value + step).coerceIn(min, max)) }, enabled = value < max) {
+            Icon(Icons.Filled.Add, null)
+        }
+    }
+}
+
+private fun fmtPlain(v: Double) = String.format(java.util.Locale.US, "%.2f", v)
+
+@Composable
+fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
+    val s = vm.settings
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SwitchRow(stringResource(R.string.show_grid), s.showGrid) { vm.updateSettings(s.copy(showGrid = it)) }
+                SwitchRow(stringResource(R.string.snap_grid), s.snap.grid) { vm.updateSettings(s.copy(snap = s.snap.copy(grid = it))) }
+                SwitchRow(stringResource(R.string.snap_endpoints), s.snap.endpoints) { vm.updateSettings(s.copy(snap = s.snap.copy(endpoints = it))) }
+                SwitchRow(stringResource(R.string.snap_angles), s.snap.angles) { vm.updateSettings(s.copy(snap = s.snap.copy(angles = it))) }
+                Stepper(stringResource(R.string.grid_size), vm.project.scale.gridCm, 5.0, 5.0, 200.0) { vm.setGridCm(it) }
+                Stepper(stringResource(R.string.default_thickness), s.wallThickness, 5.0, 5.0, 100.0) { vm.updateSettings(s.copy(wallThickness = it)) }
+                Stepper(stringResource(R.string.default_door), s.doorWidth, 5.0, 30.0, 400.0) { vm.updateSettings(s.copy(doorWidth = it)) }
+                Stepper(stringResource(R.string.default_window), s.windowWidth, 10.0, 30.0, 1000.0) { vm.updateSettings(s.copy(windowWidth = it)) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    LabeledRow(label) { Switch(checked = checked, onCheckedChange = onChange) }
+}
