@@ -43,7 +43,8 @@ data class Settings(
 )
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
-    private val autosaveFile = File(app.filesDir, "autosave.json")
+    // Null when there is no app storage (screenshot tests).
+    private val autosaveFile: File? = runCatching { File(app.filesDir, "autosave.json") }.getOrNull()
 
     var project by mutableStateOf(Project())
         private set
@@ -80,7 +81,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private var saveJob: Job? = null
 
     init {
-        if (autosaveFile.exists()) {
+        if (autosaveFile?.exists() == true) {
             runCatching { autosaveFile.readText() }.getOrNull()
                 ?.let { ProjectIO.fromJson(it) }
                 ?.let { project = it }
@@ -130,12 +131,13 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun scheduleSave() {
+        val file = autosaveFile ?: return
         saveJob?.cancel()
         val snapshot = project
         saveJob = viewModelScope.launch {
             delay(400)
             withContext(Dispatchers.IO) {
-                runCatching { autosaveFile.writeText(ProjectIO.toJson(snapshot)) }
+                runCatching { file.writeText(ProjectIO.toJson(snapshot)) }
             }
         }
     }
@@ -171,6 +173,13 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateSettings(s: Settings) {
         settings = s
+    }
+
+    /** Shows [p] without history or autosave; used to render store screenshots. */
+    fun showPreview(p: Project, tool: Tool, selection: Selection? = null) {
+        project = PlanOps.withRooms(p)
+        this.tool = tool
+        this.selection = selection
     }
 
     // ---------------- Tools & selection ----------------
