@@ -14,6 +14,8 @@
     <string name="open_json">باز کردن پروژه (JSON)</string>
     <string name="save_json">ذخیره پروژه (JSON)</string>
     <string name="export_svg">خروجی تصویر (SVG)</string>
+    <string name="privacy_policy">سیاست حریم خصوصی</string>
+    <string name="msg_no_browser">برنامه‌ای برای باز کردن لینک پیدا نشد</string>
     <string name="settings">تنظیمات</string>
 
     <string name="tool_select">انتخاب</string>
