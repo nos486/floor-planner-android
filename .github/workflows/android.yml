@@ -22,7 +22,10 @@ jobs:
         run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: Build debug APK and check the (unsigned) release build
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
+        run: ./gradlew --no-daemon assembleDebug assembleRelease bundleRelease
+
+      - name: Check the bundle carries native debug symbols
+        run: unzip -l app/build/outputs/bundle/release/*.aab | grep -i "debugsymbols"
 
       - uses: actions/upload-artifact@v4
         with:

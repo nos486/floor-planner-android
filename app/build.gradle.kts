@@ -38,6 +38,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Ship native debug symbols (from AndroidX's .so files) in the AAB for Play crash reports.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
         }
     }
 
