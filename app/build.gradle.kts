@@ -3,11 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("app.cash.paparazzi")
 }
 
 android {
     namespace = "org.geekio.floorplanner"
     compileSdk = 36
+    // CI points this at the runner's NDK, which AGP needs to extract native debug symbols.
+    System.getenv("NDK_VERSION")?.let { ndkVersion = it }
 
     defaultConfig {
         applicationId = "org.geekio.floorplanner"
@@ -37,6 +40,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Ship native debug symbols (from AndroidX's .so files) in the AAB for Play crash reports.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
         }
     }
 

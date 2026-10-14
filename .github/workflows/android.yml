@@ -18,13 +18,26 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Use the runner's NDK for native debug symbols
+        run: |
+          ndk="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          version=$(sed -n 's/^Pkg.Revision *= *//p' "$ndk/source.properties")
+          echo "Using NDK $version at $ndk"
+          echo "NDK_VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: Build debug APK and check the (unsigned) release build
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
+        run: ./gradlew --no-daemon assembleDebug assembleRelease bundleRelease
+
+      - name: Check the bundle carries native debug symbols
+        run: |
+          unzip -l app/build/outputs/bundle/release/*.aab | grep -E "lib/|BUNDLE-METADATA"
+          unzip -l app/build/outputs/bundle/release/*.aab | grep -q "BUNDLE-METADATA/com.android.tools.build.debugsymbols/"
 
       - uses: actions/upload-artifact@v4
         with:
           name: floor-planner-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+

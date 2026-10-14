@@ -15,10 +15,13 @@ private val Light = lightColorScheme(primary = Color(0xFF2563EB), secondary = Co
 private val Dark = darkColorScheme(primary = Color(0xFF8AB4FF), secondary = Color(0xFF5EEAD4))
 
 @Composable
-fun FloorPlannerTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun FloorPlannerTheme(
+    dark: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     val scheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val ctx = LocalContext.current
             if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         }
