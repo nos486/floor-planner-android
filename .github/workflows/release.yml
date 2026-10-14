@@ -30,6 +30,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Use the runner's NDK for native debug symbols
+        run: |
+          ndk="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          version=$(sed -n 's/^Pkg.Revision *= *//p' "$ndk/source.properties")
+          echo "Using NDK $version at $ndk"
+          echo "NDK_VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Restore signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

@@ -9,6 +9,8 @@ plugins {
 android {
     namespace = "org.geekio.floorplanner"
     compileSdk = 36
+    // CI points this at the runner's NDK, which AGP needs to extract native debug symbols.
+    System.getenv("NDK_VERSION")?.let { ndkVersion = it }
 
     defaultConfig {
         applicationId = "org.geekio.floorplanner"
