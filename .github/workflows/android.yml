@@ -31,10 +31,10 @@ jobs:
       - name: Build debug APK and check the (unsigned) release build
         run: ./gradlew --no-daemon assembleDebug assembleRelease bundleRelease
 
-      - name: Check the bundle carries native debug symbols
-        run: |
-          unzip -l app/build/outputs/bundle/release/*.aab | grep -E "lib/|BUNDLE-METADATA"
-          unzip -l app/build/outputs/bundle/release/*.aab | grep -q "BUNDLE-METADATA/com.android.tools.build.debugsymbols/"
+      # The only native code is AndroidX's prebuilt, already-stripped libandroidx.graphics.path.so,
+      # so there are no symbols to embed; this just lists what the bundle carries.
+      - name: List native libraries and metadata in the bundle
+        run: unzip -l app/build/outputs/bundle/release/*.aab | grep -E "lib/|BUNDLE-METADATA"
 
       - uses: actions/upload-artifact@v4
         with:
