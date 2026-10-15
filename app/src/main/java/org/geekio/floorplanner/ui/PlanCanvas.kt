@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -38,6 +39,7 @@ import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
 import org.geekio.floorplanner.core.Units
+import org.geekio.floorplanner.core.Walls
 import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.PlanWindow
@@ -199,6 +201,16 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                     drawCircle(colors.background, 10.dp.toPx(), s)
                     drawCircle(colors.selected, 10.dp.toPx(), s, style = Stroke(3.dp.toPx()))
                 }
+                // Bend handle in the middle of the wall
+                if ((vm.toScreen(wall.a) - vm.toScreen(wall.b)).getDistance() > 80.dp.toPx()) {
+                    val m = vm.toScreen(Walls.apex(wall))
+                    val r = 7.dp.toPx()
+                    val diamond = Path().apply {
+                        moveTo(m.x, m.y - r); lineTo(m.x + r, m.y); lineTo(m.x, m.y + r); lineTo(m.x - r, m.y); close()
+                    }
+                    drawPath(diamond, colors.background)
+                    drawPath(diamond, colors.selected, style = Stroke(2.5f.dp.toPx()))
+                }
             }
         }
     }
@@ -222,7 +234,9 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         // Walls of the floor below
         v.below?.let { below ->
             for (wall in below.walls) {
-                drawLine(colors.wall.copy(alpha = 0.13f), wall.a.o(), wall.b.o(), wall.thickness.toFloat(), cap = StrokeCap.Round)
+                Walls.path(wall).zipWithNext { a, b ->
+                    drawLine(colors.wall.copy(alpha = 0.13f), a.o(), b.o(), wall.thickness.toFloat(), cap = StrokeCap.Round)
+                }
             }
         }
 
@@ -270,13 +284,18 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         for (wall in project.walls) {
             val isSel = v.isSelected(Kind.WALL, wall.id)
             val base = if (isSel) colors.selected else colors.wall
-            drawLine(
-                // Low walls are drawn lighter.
-                if (wall.height != null) base.copy(alpha = base.alpha * 0.45f) else base,
-                wall.a.o(), wall.b.o(),
-                strokeWidth = wall.thickness.toFloat(),
-                cap = StrokeCap.Round,
-            )
+            // Low walls are drawn lighter.
+            val color = if (wall.height != null) base.copy(alpha = base.alpha * 0.45f) else base
+            if (wall.isCurved) {
+                val pts = Walls.path(wall)
+                val path = Path().apply {
+                    moveTo(pts[0].x.toFloat(), pts[0].y.toFloat())
+                    pts.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+                }
+                drawPath(path, color, style = Stroke(wall.thickness.toFloat(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            } else {
+                drawLine(color, wall.a.o(), wall.b.o(), strokeWidth = wall.thickness.toFloat(), cap = StrokeCap.Round)
+            }
         }
 
         // Openings
@@ -431,10 +450,10 @@ private fun DrawScope.drawDimensions(v: PlanView, tm: TextMeasurer, c: PlanColor
         val b = v.toScreen(wall.b)
         if ((a - b).getDistance() < 70.dp.toPx()) continue
         val dir = (wall.b - wall.a).normalized()
-        val mid = (wall.a + wall.b) * 0.5
+        val mid = Walls.apex(wall)
         val offWorld = mid + dir.perp() * (wall.thickness / 2)
         val screenOff = v.toScreen(offWorld) + Offset(-dir.y.toFloat(), dir.x.toFloat()) * 12.dp.toPx()
-        val layout = tm.measure(Units.lengthShort(wall.length / upm, v.settings.units), style)
+        val layout = tm.measure(Units.lengthShort(Walls.length(wall) / upm, v.settings.units), style)
         drawText(layout, topLeft = screenOff - Offset(layout.size.width / 2f, layout.size.height / 2f))
     }
 }

@@ -31,6 +31,7 @@ import org.geekio.floorplanner.core.generateId
 import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
 import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Walls
 import org.geekio.floorplanner.model.Costs
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
@@ -392,6 +393,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setDoorStyle(id: String, style: String?) = commit(PlanOps.updateDoor(project, id) { it.copy(style = style) })
 
+    fun setWallBulge(id: String, bulge: Double) = commit(PlanOps.setWallBulge(project, id, bulge))
+
     fun setWallHeight(id: String, height: Double?) = commit(PlanOps.setWallHeight(project, id, height))
 
     fun flipDoorHinge(id: String) = commit(PlanOps.updateDoor(project, id) { it.copy(flipped = !it.flipped) })
@@ -538,6 +541,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class DrawWall(val start: P) : DragOp
         data class PlaceOpening(val isDoor: Boolean) : DragOp
         data class MoveVertex(val origin: Project, val from: P) : DragOp
+        data class BendWall(val origin: Project, val wallId: String) : DragOp
         data class MoveWall(val origin: Project, val wallId: String, val startWorld: P) : DragOp
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
         data class DrawMeasure(val start: P) : DragOp
@@ -622,6 +626,12 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         if (sel?.kind == Kind.WALL) {
             project.wall(sel.id)?.let { wall ->
                 val handleTol = worldTol(HANDLE_DP)
+                if ((toScreen(wall.a) - toScreen(wall.b)).getDistance() > BEND_HANDLE_MIN_DP * density &&
+                    Walls.apex(wall).dist(w) <= worldTol(HANDLE_DP * 0.7f) &&
+                    minOf(wall.a.dist(w), wall.b.dist(w)) > handleTol
+                ) {
+                    return DragOp.BendWall(project, wall.id)
+                }
                 listOf(wall.a, wall.b).minByOrNull { it.dist(w) }?.takeIf { it.dist(w) <= handleTol }?.let {
                     return DragOp.MoveVertex(project, it)
                 }
@@ -671,6 +681,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val others = op.origin.walls
                 val s = snap(w, exclude = op.from, walls = others)
                 project = PlanOps.moveVertex(op.origin, op.from, s.point)
+            }
+            is DragOp.BendWall -> {
+                val wall = op.origin.wall(op.wallId) ?: return
+                project = PlanOps.setWallBulge(op.origin, op.wallId, Walls.bulgeThrough(wall, w))
             }
             is DragOp.MoveWall -> {
                 val delta = w - op.startWorld
@@ -733,6 +747,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.PlaceOpening -> placeOpeningDraft()
             is DragOp.MoveVertex -> commit(project, before = op.origin)
+            is DragOp.BendWall -> commit(project, before = op.origin)
             is DragOp.MoveWall -> commit(project, before = op.origin)
             is DragOp.SlideOpening -> commit(project, before = op.origin)
             is DragOp.DrawMeasure -> {
@@ -768,6 +783,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun onDragCancel() {
         when (val op = dragOp) {
             is DragOp.MoveVertex -> project = op.origin
+            is DragOp.BendWall -> project = op.origin
             is DragOp.MoveWall -> project = op.origin
             is DragOp.SlideOpening -> project = op.origin
             is DragOp.MoveItem -> project = op.origin
@@ -782,7 +798,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun updateOpeningDraft(w: P, isDoor: Boolean) {
-        val wall = PlanOps.hitWall(project, w, worldTol(OPENING_HIT_DP))
+        val wall = PlanOps.hitWall(project, w, worldTol(OPENING_HIT_DP))?.takeUnless { it.isCurved }
         val width = if (isDoor) settings.doorWidth else settings.windowWidth
         val offset = wall?.let { PlanOps.openingOffset(it, w, width) }
         draft = if (wall != null && offset != null) Draft.OpeningDraft(wall.id, offset, width, isDoor) else null
@@ -810,6 +826,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         private const val OPENING_HIT_DP = 30f
         private const val WALL_SNAP_DP = 16f
         const val ROTATE_HANDLE_OFFSET_DP = 28f
+        /** The bend handle shows on walls at least this long on screen. */
+        private const val BEND_HANDLE_MIN_DP = 80f
         /** Furniture moves in 5 cm steps when grid snapping is on. */
         private const val ITEM_GRID = 5.0
     }

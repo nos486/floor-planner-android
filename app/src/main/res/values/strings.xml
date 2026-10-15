@@ -194,4 +194,5 @@
     <string name="f_stairs">Stairs</string>
     <string name="f_spiral_stairs">Spiral stairs</string>
     <string name="f_fireplace">Fireplace</string>
+    <string name="curve">Curve</string>
 </resources>

@@ -1,11 +1,60 @@
 package org.geekio.floorplanner.core
 
 import org.geekio.floorplanner.model.Wall
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Wall centre lines as polylines, measured by distance along them. */
 object Walls {
-    /** The centre line of [wall] from its start to its end. */
-    fun path(wall: Wall): List<P> = listOf(wall.a, wall.b)
+    /** The centre line of [wall] from its start to its end: two points, or an arc as a polyline. */
+    fun path(wall: Wall): List<P> {
+        if (!wall.isCurved || wall.a.dist(wall.b) < 1) return listOf(wall.a, wall.b)
+        val arc = arc(wall)
+        val n = (Math.abs(arc.sweep) * arc.radius / ARC_STEP).toInt().coerceIn(8, 64)
+        return (0..n).map { i ->
+            val t = arc.start + arc.sweep * i / n
+            P(arc.center.x + arc.radius * cos(t), arc.center.y + arc.radius * sin(t))
+        }.let { pts -> listOf(wall.a) + pts.subList(1, pts.lastIndex) + wall.b }
+    }
+
+    data class Arc(val center: P, val radius: Double, val start: Double, val sweep: Double)
+
+    /** The circle arc of a curved wall. */
+    fun arc(wall: Wall): Arc {
+        val c = wall.a.dist(wall.b)
+        val s = wall.bulge
+        val n = (wall.b - wall.a).normalized().perp()
+        val mid = (wall.a + wall.b) * 0.5
+        val r = (c * c / 4 + s * s) / (2 * Math.abs(s))
+        val center = mid + n * (s - Math.signum(s) * r)
+        val apex = mid + n * s
+        fun ang(p: P) = atan2(p.y - center.y, p.x - center.x)
+        val start = ang(wall.a)
+        var half = ang(apex) - start
+        while (half > Math.PI) half -= 2 * Math.PI
+        while (half <= -Math.PI) half += 2 * Math.PI
+        return Arc(center, r, start, 2 * half)
+    }
+
+    /** The middle of the wall's centre line (the top of the arc), where the bend handle sits. */
+    fun apex(wall: Wall): P = (wall.a + wall.b) * 0.5 + (wall.b - wall.a).normalized().perp() * wall.bulge
+
+    /** Bulge that makes the wall's arc pass through [point] at its middle. */
+    fun bulgeThrough(wall: Wall, point: P): Double {
+        val n = (wall.b - wall.a).normalized().perp()
+        val s = (point - (wall.a + wall.b) * 0.5).dot(n)
+        val max = wall.a.dist(wall.b) / 2
+        return roundTo(s.coerceIn(-max, max), 0).let { if (Math.abs(it) < 2) 0.0 else it }
+    }
+
+    /** Distance from [point] to the wall's centre line. */
+    fun distance(wall: Wall, point: P): Double {
+        val path = path(wall)
+        return (0 until path.lastIndex).minOf { projectPointOnSegment(point, path[it], path[it + 1]).distance }
+    }
+
+    private const val ARC_STEP = 15.0
 
     fun length(wall: Wall): Double = length(path(wall))
 

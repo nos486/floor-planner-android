@@ -128,7 +128,7 @@ object Furniture {
         var best: Item? = null
         var bestD = Double.MAX_VALUE
         for (wall in walls) {
-            if (wall.length < 1) continue
+            if (wall.length < 1 || wall.isCurved) continue
             val proj = projectPointOnSegment(center, wall.a, wall.b)
             val gap = proj.distance - wall.thickness / 2 - item.depth / 2
             if (abs(gap) > reach || proj.distance >= bestD) continue

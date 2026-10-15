@@ -53,8 +53,14 @@ data class Wall(
     val thickness: Double = 20.0,
     /** Height of a low wall (counter, railing) in world units; null for a full-height wall. */
     val height: Double? = null,
+    /**
+     * Curve of the wall: how far the middle of the arc sits from the straight line a→b, measured along its
+     * left-hand normal (perp of a→b). 0 for a straight wall.
+     */
+    val bulge: Double = 0.0,
 ) {
     val a: P get() = P.of(points[0])
+    val isCurved: Boolean get() = kotlin.math.abs(bulge) >= 0.5
     val b: P get() = P.of(points[1])
     val length: Double get() = a.dist(b)
 

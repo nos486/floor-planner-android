@@ -55,6 +55,7 @@ import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.UnitSystem
 import org.geekio.floorplanner.core.Units
+import org.geekio.floorplanner.core.Walls
 import org.geekio.floorplanner.model.Door
 
 /** Bottom panel with the properties of the selected wall / door / window / room. */
@@ -79,15 +80,20 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             val lengthTitle = stringResource(R.string.length_m)
             body = {
                 LabeledRow(stringResource(R.string.length)) {
-                    TextButton(onClick = {
-                        openDialog(ScreenDialog.Text(lengthTitle, Units.editValue(wall.length / upm, u)) { text ->
-                            Units.parseLength(text, u)?.let { vm.setWallLengthMeters(wall.id, it) }
-                        })
-                    }) {
-                        Text(Units.length(wall.length / upm, u))
-                        Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
+                    if (wall.isCurved) {
+                        Text(Units.length(Walls.length(wall) / upm, u), Modifier.padding(end = 12.dp))
+                    } else {
+                        TextButton(onClick = {
+                            openDialog(ScreenDialog.Text(lengthTitle, Units.editValue(wall.length / upm, u)) { text ->
+                                Units.parseLength(text, u)?.let { vm.setWallLengthMeters(wall.id, it) }
+                            })
+                        }) {
+                            Text(Units.length(wall.length / upm, u))
+                            Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
+                        }
                     }
                 }
+                Stepper(stringResource(R.string.curve), wall.bulge, 10.0, -wall.length / 2, wall.length / 2, u) { vm.setWallBulge(wall.id, it) }
                 Stepper(stringResource(R.string.thickness), wall.thickness, 5.0, 5.0, 100.0, u) { vm.setWallThickness(wall.id, it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(

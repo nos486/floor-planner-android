@@ -96,11 +96,13 @@ object PlanOps {
         val idx = p.walls.indexOfFirst { it.id == wallId }
         if (idx < 0) return null
         val wall = p.walls[idx]
-        val mid = ((wall.a + wall.b) * 0.5).rounded()
+        val mid = Walls.apex(wall).rounded()
         val d1 = wall.a.dist(mid)
         if (d1 < 10 || mid.dist(wall.b) < 10) return null
-        val wa = Wall.create(generateId("w"), wall.a, mid, wall.thickness)
-        val wb = Wall.create(generateId("w"), mid, wall.b, wall.thickness)
+        // A curved wall splits at the top of its arc into two flatter arcs on the same circle.
+        val half = if (wall.isCurved) Walls.arc(wall).let { arc -> Math.signum(wall.bulge) * (arc.radius - Math.sqrt(maxOf(0.0, arc.radius * arc.radius - d1 * d1 / 4))) } else 0.0
+        val wa = Wall.create(generateId("w"), wall.a, mid, wall.thickness).copy(height = wall.height, bulge = roundTo(half, 1))
+        val wb = Wall.create(generateId("w"), mid, wall.b, wall.thickness).copy(height = wall.height, bulge = roundTo(half, 1))
         val walls = p.walls.toMutableList().apply { removeAt(idx); addAll(idx, listOf(wa, wb)) }
         val doors = p.doors.map {
             if (it.wallId != wallId) it
@@ -268,6 +270,18 @@ object PlanOps {
         )
     }
 
+    fun setWallBulge(p: Project, wallId: String, bulge: Double): Project {
+        val wall = p.wall(wallId) ?: return p
+        val max = wall.length / 2
+        val b = roundTo(bulge.coerceIn(-max, max), 0)
+        // Doors and windows only sit on straight walls.
+        return withRooms(p.copy(
+            walls = p.walls.map { if (it.id == wallId) it.copy(bulge = if (Math.abs(b) < 2) 0.0 else b) else it },
+            doors = if (Math.abs(b) < 2) p.doors else p.doors.filter { it.wallId != wallId },
+            windows = if (Math.abs(b) < 2) p.windows else p.windows.filter { it.wallId != wallId },
+        ))
+    }
+
     fun setWallHeight(p: Project, wallId: String, height: Double?) =
         p.copy(walls = p.walls.map { if (it.id == wallId) it.copy(height = height) else it })
 
@@ -292,7 +306,7 @@ object PlanOps {
 
     fun hitWall(p: Project, point: P, tolerance: Double): Wall? =
         p.walls
-            .map { it to projectPointOnSegment(point, it.a, it.b).distance }
+            .map { it to Walls.distance(it, point) }
             .filter { (w, d) -> d <= w.thickness / 2 + tolerance }
             .minByOrNull { it.second }?.first
 

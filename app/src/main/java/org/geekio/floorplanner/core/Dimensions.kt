@@ -45,7 +45,7 @@ object Dimensions {
 
     fun wallExtent(p: Project): Extent? {
         if (p.walls.isEmpty()) return null
-        val pts = p.walls.flatMap { listOf(it.a, it.b) }
+        val pts = p.walls.flatMap { Walls.path(it) }
         val pad = p.walls.maxOf { it.thickness } / 2
         return Extent(pts.minOf { it.x } - pad, pts.minOf { it.y } - pad, pts.maxOf { it.x } + pad, pts.maxOf { it.y } + pad)
     }

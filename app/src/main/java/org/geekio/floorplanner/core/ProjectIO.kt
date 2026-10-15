@@ -99,7 +99,7 @@ object ProjectIO {
     }
 
     /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
-    fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
+    fun extentPoints(p: Project): List<P> = p.walls.flatMap { Walls.path(it) } + p.items.flatMap { Furniture.corners(it) }
 
     fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC, showDimensions: Boolean = true): String {
         val pts = extentPoints(p)
@@ -141,7 +141,9 @@ object ProjectIO {
             sb.append("</g>\n")
         }
         for (wall in p.walls) {
-            sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-opacity="${if (wall.height != null) "0.45" else "1"}" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
+            val opacity = if (wall.height != null) "0.45" else "1"
+            val pts = Walls.path(wall).joinToString(" ") { "${n(it.x)},${n(it.y)}" }
+            sb.append("""<polyline points="$pts" fill="none" stroke="#2b2f36" stroke-opacity="$opacity" stroke-width="${n(wall.thickness)}" stroke-linecap="round" stroke-linejoin="round"/>""").append('\n')
         }
         for (door in p.doors) {
             val wall = p.wall(door.wallId) ?: continue
@@ -169,9 +171,9 @@ object ProjectIO {
         }
         for (wall in p.walls) {
             if (wall.length < 40 || !showDimensions) continue
-            val mid = (wall.a + wall.b) * 0.5
+            val mid = Walls.apex(wall)
             val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
-            val label = esc(Units.length(wall.length / upm, units, Locale.US))
+            val label = esc(Units.length(Walls.length(wall) / upm, units, Locale.US))
             sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
         }
         for (g in (if (showDimensions) Dimensions.overall(p, 50.0) else emptyList()) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
