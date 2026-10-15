@@ -255,6 +255,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Layers
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.check_plan)) }, onClick = {
+                                menuOpen = false; vm.checkPlan()
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.materials)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Materials
                             })

@@ -56,6 +56,7 @@ private fun P.o() = Offset(x.toFloat(), y.toFloat())
 val ELECTRICAL_COLOR = Color(0xFFD97706)
 val PLUMBING_COLOR = Color(0xFF0284C7)
 val REMOVED_COLOR = Color(0xFFDC2626)
+val ISSUE_COLOR = Color(0xFFEA580C)
 val ADDED_COLOR = Color(0xFF16A34A)
 
 
@@ -199,6 +200,15 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+
+        // Problems found by the plan check
+        for (issue in vm.issues) {
+            val s = vm.toScreen(issue.at)
+            drawCircle(ISSUE_COLOR.copy(alpha = 0.18f), 22.dp.toPx(), s)
+            drawCircle(ISSUE_COLOR, 11.dp.toPx(), s)
+            drawLine(Color.White, s - Offset(0f, 5.dp.toPx()), s + Offset(0f, 1.5f.dp.toPx()), 2.5f.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(Color.White, 1.5f.dp.toPx(), s + Offset(0f, 5.dp.toPx()))
         }
 
         // Endpoint handles of the selected wall

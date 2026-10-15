@@ -19,6 +19,8 @@ import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.Backgrounds
 import org.geekio.floorplanner.core.Compare
 import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.Issue
+import org.geekio.floorplanner.core.PlanCheck
 import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.Furniture
@@ -275,6 +277,42 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         loadBackground(id)
         comparing = null
         versions = emptyList()
+    }
+
+    // ---------------- Plan check ----------------
+
+    /** True while the list of problems found in the plan is open. */
+    var checking by mutableStateOf(false)
+        private set
+
+    private var issueCache: Pair<Project, List<Issue>>? = null
+
+    /** Problems in the open floor while [checking], kept up to date as the plan changes. */
+    val issues: List<Issue>
+        get() {
+            if (!checking) return emptyList()
+            issueCache?.let { (p, list) -> if (p === project) return list }
+            return PlanCheck.run(project).also { issueCache = project to it }
+        }
+
+    fun checkPlan() {
+        selection = null
+        multiSelect = false
+        group = emptySet()
+        checking = true
+        if (issues.isEmpty()) {
+            checking = false
+            message = R.string.msg_no_issues
+        }
+    }
+
+    fun stopChecking() {
+        checking = false
+    }
+
+    /** Centres the view on [issue]. */
+    fun focusIssue(issue: Issue) {
+        pan = Offset(viewSize.width / 2f - (issue.at.x * zoom).toFloat(), viewSize.height / 2f - (issue.at.y * zoom).toFloat())
     }
 
     // ---------------- Versions ----------------

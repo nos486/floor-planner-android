@@ -221,4 +221,14 @@
     <string name="compare_areas">Then %1$s · now %2$s</string>
     <string name="details">Details</string>
     <string name="compare_legend">Red: walls taken out. Green: new walls.</string>
+    <string name="check_plan">Check plan</string>
+    <string name="msg_no_issues">No problems found</string>
+    <string name="issues_count">%1$d things to check</string>
+    <string name="issue_door_blocked">A door hits the %1$s</string>
+    <string name="issue_overlap">%1$s and %2$s overlap</string>
+    <string name="issue_in_wall">%1$s goes into a wall</string>
+    <string name="issue_window_blocked">%1$s stands in front of a window</string>
+    <string name="issue_narrow">%1$s is only %2$s wide</string>
+    <string name="issue_no_door">%1$s has no door</string>
+    <string name="issue_no_window">%1$s has no window</string>
 </resources>

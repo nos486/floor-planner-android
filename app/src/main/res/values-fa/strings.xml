@@ -221,4 +221,14 @@
     <string name="compare_areas">قبلاً %1$s · حالا %2$s</string>
     <string name="details">جزئیات</string>
     <string name="compare_legend">قرمز: دیوارهای برداشته‌شده. سبز: دیوارهای جدید.</string>
+    <string name="check_plan">بررسی نقشه</string>
+    <string name="msg_no_issues">مشکلی پیدا نشد</string>
+    <string name="issues_count">%1$d مورد برای بررسی</string>
+    <string name="issue_door_blocked">در به %1$s می‌خورد</string>
+    <string name="issue_overlap">%1$s و %2$s روی هم افتاده‌اند</string>
+    <string name="issue_in_wall">%1$s داخل دیوار رفته است</string>
+    <string name="issue_window_blocked">%1$s جلوی پنجره است</string>
+    <string name="issue_narrow">عرض %1$s فقط %2$s است</string>
+    <string name="issue_no_door">%1$s در ندارد</string>
+    <string name="issue_no_window">%1$s پنجره ندارد</string>
 </resources>

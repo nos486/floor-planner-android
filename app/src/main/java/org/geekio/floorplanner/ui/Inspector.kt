@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Rotate90DegreesCcw
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -56,6 +58,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.FloorPatterns
+import org.geekio.floorplanner.core.Issue
+import org.geekio.floorplanner.core.IssueKind
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.UnitSystem
@@ -69,6 +73,10 @@ import org.geekio.floorplanner.model.Door
 fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
     if (vm.multiSelect) {
         GroupPanel(vm)
+        return
+    }
+    if (vm.checking && vm.selection == null) {
+        IssuesPanel(vm)
         return
     }
     val sel = vm.selection ?: return
@@ -300,6 +308,49 @@ private fun GroupPanel(vm: PlanViewModel) {
                 }
             }
         }
+    }
+}
+
+/** The problems found by the plan check; tapping one moves the view to it. */
+@Composable
+private fun IssuesPanel(vm: PlanViewModel) {
+    val issues = vm.issues
+    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (issues.isEmpty()) stringResource(R.string.msg_no_issues) else stringResource(R.string.issues_count, issues.size),
+                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = vm::stopChecking) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+            }
+            Column(Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
+                for (issue in issues) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vm.focusIssue(issue) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.WarningAmber, null, tint = ISSUE_COLOR, modifier = Modifier.padding(end = 12.dp))
+                        Text(issueText(issue, vm.project.scale.unitsPerMeter, vm.settings.units), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun issueText(issue: Issue, upm: Double, u: UnitSystem): String {
+    val subject = if (issue.kind in listOf(IssueKind.NARROW_ROOM, IssueKind.NO_DOOR, IssueKind.NO_WINDOW)) issue.subject
+    else stringResource(furnitureName(issue.subject))
+    return when (issue.kind) {
+        IssueKind.DOOR_BLOCKED -> stringResource(R.string.issue_door_blocked, subject)
+        IssueKind.ITEMS_OVERLAP -> stringResource(R.string.issue_overlap, subject, stringResource(furnitureName(issue.other)))
+        IssueKind.ITEM_IN_WALL -> stringResource(R.string.issue_in_wall, subject)
+        IssueKind.WINDOW_BLOCKED -> stringResource(R.string.issue_window_blocked, subject)
+        IssueKind.NARROW_ROOM -> stringResource(R.string.issue_narrow, subject, Units.length(issue.value / upm, u))
+        IssueKind.NO_DOOR -> stringResource(R.string.issue_no_door, subject)
+        IssueKind.NO_WINDOW -> stringResource(R.string.issue_no_window, subject)
     }
 }
 
