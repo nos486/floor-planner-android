@@ -325,7 +325,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     var group by mutableStateOf<Set<Selection>>(emptySet())
         private set
 
-    fun setMultiSelect(on: Boolean) {
+    fun enableMultiSelect(on: Boolean) {
         multiSelect = on
         group = if (on) setOfNotNull(selection?.let { GroupOps.member(project, it) }) else emptySet()
         selection = null

@@ -174,7 +174,7 @@ fun PlanScreen(vm: PlanViewModel) {
 
     BackHandler {
         when {
-            vm.multiSelect -> vm.setMultiSelect(false)
+            vm.multiSelect -> vm.enableMultiSelect(false)
             vm.selection != null -> vm.clearSelection()
             else -> vm.closeProject()
         }
@@ -277,7 +277,7 @@ fun PlanScreen(vm: PlanViewModel) {
             if (vm.tool == Tool.SELECT && vm.project.walls.isNotEmpty()) {
                 FilterChip(
                     selected = vm.multiSelect,
-                    onClick = { vm.setMultiSelect(!vm.multiSelect) },
+                    onClick = { vm.enableMultiSelect(!vm.multiSelect) },
                     label = { Text(stringResource(R.string.select_several)) },
                     leadingIcon = { Icon(Icons.Filled.HighlightAlt, null, Modifier.size(FilterChipDefaults.IconSize)) },
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),

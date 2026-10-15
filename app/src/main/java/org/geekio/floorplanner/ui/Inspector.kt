@@ -241,7 +241,7 @@ private fun GroupPanel(vm: PlanViewModel) {
                     style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = vm::selectAll) { Text(stringResource(R.string.select_all)) }
-                IconButton(onClick = { vm.setMultiSelect(false) }) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+                IconButton(onClick = { vm.enableMultiSelect(false) }) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
             }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = vm::duplicateGroup, enabled = n > 0) {
