@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -66,6 +67,8 @@ class PlanView(
     val group: Set<Selection> = emptySet(),
     /** The floor below, drawn faintly so walls can be lined up. */
     val below: Floor? = null,
+    /** Photo of a paper plan under the drawing, placed by [Project.background]. */
+    val backgroundImage: ImageBitmap? = null,
 ) {
     fun isSelected(kind: Kind, id: String) =
         (selection?.kind == kind && selection.id == id) || Selection(kind, id) in group ||
@@ -231,6 +234,18 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         translate(v.pan.x, v.pan.y)
         scale(zoom, zoom, pivot = Offset.Zero)
     }) {
+        // Background photo
+        val bgImage = v.backgroundImage
+        val bg = project.background
+        if (bgImage != null && bg != null) {
+            withTransform({
+                translate(bg.x.toFloat(), bg.y.toFloat())
+                scale(bg.scale.toFloat(), bg.scale.toFloat(), pivot = Offset.Zero)
+            }) {
+                drawImage(bgImage, alpha = bg.opacity.toFloat())
+            }
+        }
+
         // Walls of the floor below
         v.below?.let { below ->
             for (wall in below.walls) {

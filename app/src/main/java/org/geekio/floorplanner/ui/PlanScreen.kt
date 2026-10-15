@@ -165,6 +165,9 @@ fun PlanScreen(vm: PlanViewModel) {
             }
         }
     }
+    val pickBackground = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { vm.setBackground(it) }
+    }
     val openJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
@@ -238,6 +241,10 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Export
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.background_photo)) }, onClick = {
+                                menuOpen = false
+                                if (vm.project.background == null) pickBackground.launch("image/*") else dialog = ScreenDialog.Background
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Layers
                             })
@@ -296,6 +303,21 @@ fun PlanScreen(vm: PlanViewModel) {
                     colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             }
+            if (vm.tool == Tool.CALIBRATE || vm.tool == Tool.BACKGROUND) {
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(if (vm.tool == Tool.CALIBRATE) R.string.hint_calibrate else R.string.hint_move_background),
+                            Modifier.weight(1f, fill = false),
+                        )
+                        TextButton(onClick = { vm.selectTool(Tool.SELECT) }) { Text(stringResource(R.string.done)) }
+                    }
+                }
+            }
             if (!vm.multiSelect) {
                 FloorMenu(vm, { dialog = it }, Modifier.align(Alignment.TopEnd).padding(8.dp))
             }
@@ -312,6 +334,17 @@ fun PlanScreen(vm: PlanViewModel) {
     }
 
     if (addOpen) AddSheet(vm) { addOpen = false }
+
+    vm.calibrateRequest?.let {
+        TextInputDialog(
+            title = stringResource(R.string.calibrate_title) + " (" + Units.lengthUnit(vm.settings.units) + ")",
+            message = stringResource(R.string.calibrate_message),
+            initial = "",
+            keyboardType = if (vm.settings.units == org.geekio.floorplanner.core.UnitSystem.METRIC) KeyboardType.Decimal else KeyboardType.Text,
+            onDismiss = { vm.calibrateRequest = null },
+            onConfirm = { text -> Units.parseLength(text, vm.settings.units)?.let { vm.calibrate(it) } ?: run { vm.calibrateRequest = null } },
+        )
+    }
 
     vm.labelRequest?.let {
         TextInputDialog(
@@ -332,6 +365,7 @@ fun PlanScreen(vm: PlanViewModel) {
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
         ScreenDialog.Layers -> LayersDialog(vm) { dialog = null }
+        ScreenDialog.Background -> BackgroundDialog(vm, onPick = { pickBackground.launch("image/*") }) { dialog = null }
         ScreenDialog.View3D -> ThreeDView(vm.project) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
             stringResource(R.string.share),
@@ -370,6 +404,7 @@ sealed interface ScreenDialog {
     data object Settings : ScreenDialog
     data object Materials : ScreenDialog
     data object Layers : ScreenDialog
+    data object Background : ScreenDialog
     data object View3D : ScreenDialog
     data object Share : ScreenDialog
     data object Export : ScreenDialog

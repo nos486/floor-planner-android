@@ -195,4 +195,17 @@
     <string name="f_spiral_stairs">پله گرد</string>
     <string name="f_fireplace">شومینه</string>
     <string name="curve">انحنا</string>
+    <string name="background_photo">عکس زمینه</string>
+    <string name="background_missing">فایل عکس این نقشه پیدا نشد؛ برای دیدنش دوباره انتخابش کنید.</string>
+    <string name="opacity">شفافیت</string>
+    <string name="set_scale">تنظیم مقیاس</string>
+    <string name="move_photo">جابه‌جایی عکس</string>
+    <string name="replace_photo">عکس دیگر</string>
+    <string name="remove_photo">حذف عکس</string>
+    <string name="done">تمام</string>
+    <string name="hint_calibrate">روی عکس، روی طولی که اندازه‌اش را می‌دانید خط بکشید؛ مثلاً دیواری که اندازه‌اش نوشته شده</string>
+    <string name="hint_move_background">برای جابه‌جا کردن عکس زیر نقشه بکشید</string>
+    <string name="calibrate_title">طول واقعی</string>
+    <string name="calibrate_message">طول واقعی خطی که کشیدید چقدر است؟</string>
+    <string name="msg_image_failed">این عکس باز نشد</string>
 </resources>

@@ -195,4 +195,17 @@
     <string name="f_spiral_stairs">Spiral stairs</string>
     <string name="f_fireplace">Fireplace</string>
     <string name="curve">Curve</string>
+    <string name="background_photo">Background photo</string>
+    <string name="background_missing">The photo file of this plan is missing; replace it to see it again.</string>
+    <string name="opacity">Opacity</string>
+    <string name="set_scale">Set scale</string>
+    <string name="move_photo">Move photo</string>
+    <string name="replace_photo">Replace photo</string>
+    <string name="remove_photo">Remove photo</string>
+    <string name="done">Done</string>
+    <string name="hint_calibrate">Draw a line over a length you know on the photo, such as a wall with its size written on it</string>
+    <string name="hint_move_background">Drag to move the photo under the plan</string>
+    <string name="calibrate_title">Real length</string>
+    <string name="calibrate_message">How long is the line you drew in reality?</string>
+    <string name="msg_image_failed">Couldn\'t open this picture</string>
 </resources>

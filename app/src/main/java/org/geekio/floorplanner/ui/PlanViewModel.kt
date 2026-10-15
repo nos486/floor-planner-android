@@ -3,6 +3,11 @@ package org.geekio.floorplanner.ui
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +16,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Backgrounds
 import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.Furniture
@@ -42,7 +48,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-enum class Tool { SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT }
+enum class Tool {
+    SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT,
+    /** Draw a line over the background photo to give it its real scale. */
+    CALIBRATE,
+    /** Drag the background photo around. */
+    BACKGROUND,
+}
 
 /** Something being drawn that is not part of the project yet. */
 sealed interface Draft {
@@ -257,6 +269,72 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         draft = null
         tool = if (p.walls.isEmpty()) Tool.WALL else Tool.SELECT
         fittedOnce = false
+        fitToScreen()
+        loadBackground(id)
+    }
+
+    // ---------------- Background photo ----------------
+
+    /** The photo under the plan, loaded from the project's image file. */
+    var backgroundImage by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    /** A line drawn with the calibrate tool, waiting for its real length. */
+    var calibrateRequest by mutableStateOf<Pair<P, P>?>(null)
+
+    private fun loadBackground(id: String) {
+        backgroundImage = null
+        val file = store?.backgroundFile(id) ?: return
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) { if (file.exists()) runCatching { BitmapFactory.decodeFile(file.path) }.getOrNull() else null }
+            if (currentId == id) backgroundImage = bmp?.asImageBitmap()
+        }
+    }
+
+    /** Puts the picture at [uri] under the plan, about as wide as the screen; then the user sets its scale. */
+    fun setBackground(uri: Uri) {
+        val id = currentId ?: return
+        val file = store?.backgroundFile(id) ?: return
+        val resolver = getApplication<Application>().contentResolver
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) {
+                runCatching {
+                    val b = ImageFiles.decode(resolver, uri, BACKGROUND_MAX_PX)
+                    file.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+                    b
+                }.getOrNull()
+            }
+            if (bmp == null) {
+                message = R.string.msg_image_failed
+                return@launch
+            }
+            backgroundImage = bmp.asImageBitmap()
+            val center = toWorld(Offset(viewSize.width / 2f, viewSize.height / 2f))
+            val span = viewSize.width / zoom * 0.9
+            commit(project.copy(background = Backgrounds.place(bmp.width, bmp.height, center, span)))
+            selectTool(Tool.CALIBRATE)
+        }
+    }
+
+    fun removeBackground() {
+        currentId?.let { id -> store?.backgroundFile(id)?.delete() }
+        backgroundImage = null
+        commit(project.copy(background = null))
+        if (tool == Tool.CALIBRATE || tool == Tool.BACKGROUND) selectTool(Tool.SELECT)
+    }
+
+    fun setBackgroundOpacity(opacity: Double) {
+        val bg = project.background ?: return
+        commit(project.copy(background = bg.copy(opacity = opacity.coerceIn(0.1, 1.0))))
+    }
+
+    /** Gives the background its scale from the line in [calibrateRequest] being [meters] long. */
+    fun calibrate(meters: Double) {
+        val (a, b) = calibrateRequest ?: return
+        calibrateRequest = null
+        val bg = project.background ?: return
+        commit(project.copy(background = Backgrounds.calibrate(bg, a, b, meters * project.scale.unitsPerMeter)))
+        selectTool(Tool.SELECT)
         fitToScreen()
     }
 
@@ -491,7 +569,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     /** The project without its hidden layers: what is drawn, exported and can be tapped. */
     val shown: Project get() = Layers.visible(project, settings.hiddenLayers)
 
-    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project))
+    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project), backgroundImage)
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
@@ -546,6 +624,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
         data class DrawMeasure(val start: P) : DragOp
         data class DrawArrow(val start: P) : DragOp
+        data class DrawCalibration(val start: P) : DragOp
+        data class MoveBackground(val origin: Project, val startWorld: P) : DragOp
         data class BoxSelect(val start: P) : DragOp
         data class MoveGroup(val origin: Project, val startWorld: P) : DragOp
         data class MoveLabel(val origin: Project, val id: String, val startWorld: P) : DragOp
@@ -574,6 +654,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             Tool.WALL -> message = R.string.hint_wall
             Tool.MEASURE -> message = R.string.hint_measure
             Tool.TEXT -> labelRequest = LabelRequest(w, null)
+            Tool.CALIBRATE -> message = R.string.hint_calibrate
+            Tool.BACKGROUND -> Unit
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
                 placeOpeningDraft()
@@ -603,6 +685,11 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 DragOp.DrawArrow(w)
             }
             Tool.SELECT -> if (multiSelect) groupDragStart(w) else selectDragStart(screen, w)
+            Tool.CALIBRATE -> {
+                draft = Draft.MeasureDraft(w, w, SnapType.NONE)
+                DragOp.DrawCalibration(w)
+            }
+            Tool.BACKGROUND -> DragOp.MoveBackground(project, w)
         }
     }
 
@@ -706,6 +793,11 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 draft = Draft.MeasureDraft(op.start, s.point, s.type)
             }
             is DragOp.DrawArrow -> draft = Draft.ArrowDraft(op.start, w)
+            is DragOp.DrawCalibration -> draft = Draft.MeasureDraft(op.start, w, SnapType.NONE)
+            is DragOp.MoveBackground -> {
+                val bg = op.origin.background ?: return
+                project = op.origin.copy(background = Backgrounds.move(bg, w - op.startWorld))
+            }
             is DragOp.BoxSelect -> draft = Draft.BoxDraft(op.start, w)
             is DragOp.MoveGroup -> {
                 val delta = w - op.startWorld
@@ -775,6 +867,12 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.MoveItem -> commit(project, before = op.origin)
             is DragOp.RotateItem -> commit(project, before = op.origin)
+            is DragOp.MoveBackground -> commit(project, before = op.origin)
+            is DragOp.DrawCalibration -> {
+                val d = draft as? Draft.MeasureDraft
+                draft = null
+                if (d != null && d.a.dist(d.b) > worldTol(HIT_DP)) calibrateRequest = d.a to d.b
+            }
             is DragOp.Pan, null -> Unit
         }
         dragOp = null
@@ -791,6 +889,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveLabel -> project = op.origin
             is DragOp.MoveGroup -> project = op.origin
             is DragOp.RotateItem -> project = op.origin
+            is DragOp.MoveBackground -> project = op.origin
             else -> Unit
         }
         draft = null
@@ -830,5 +929,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         private const val BEND_HANDLE_MIN_DP = 80f
         /** Furniture moves in 5 cm steps when grid snapping is on. */
         private const val ITEM_GRID = 5.0
+        /** Longest side of a stored background photo, in pixels. */
+        private const val BACKGROUND_MAX_PX = 2048
     }
 }

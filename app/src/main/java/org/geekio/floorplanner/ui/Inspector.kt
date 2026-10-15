@@ -37,10 +37,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -376,6 +381,37 @@ fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
                 Stepper(stringResource(R.string.default_thickness), s.wallThickness, 5.0, 5.0, 100.0, s.units) { vm.updateSettings(s.copy(wallThickness = it)) }
                 Stepper(stringResource(R.string.default_door), s.doorWidth, 5.0, 30.0, 400.0, s.units) { vm.updateSettings(s.copy(doorWidth = it)) }
                 Stepper(stringResource(R.string.default_window), s.windowWidth, 10.0, 30.0, 1000.0, s.units) { vm.updateSettings(s.copy(windowWidth = it)) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+@Composable
+fun BackgroundDialog(vm: PlanViewModel, onPick: () -> Unit, onDismiss: () -> Unit) {
+    val bg = vm.project.background ?: return
+    var opacity by remember { mutableStateOf(bg.opacity.toFloat()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.background_photo)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vm.backgroundImage == null) Text(stringResource(R.string.background_missing))
+                Text(stringResource(R.string.opacity), style = MaterialTheme.typography.bodyMedium)
+                Slider(
+                    value = opacity, onValueChange = { opacity = it }, valueRange = 0.1f..1f,
+                    onValueChangeFinished = { vm.setBackgroundOpacity(opacity.toDouble()) },
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onDismiss(); vm.selectTool(Tool.CALIBRATE) }) { Text(stringResource(R.string.set_scale)) }
+                    OutlinedButton(onClick = { onDismiss(); vm.selectTool(Tool.BACKGROUND) }) { Text(stringResource(R.string.move_photo)) }
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onDismiss(); onPick() }) { Text(stringResource(R.string.replace_photo)) }
+                    OutlinedButton(onClick = { onDismiss(); vm.removeBackground() }) {
+                        Text(stringResource(R.string.remove_photo), color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },

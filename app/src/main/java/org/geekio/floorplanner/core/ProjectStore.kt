@@ -40,9 +40,19 @@ class ProjectStore(private val dir: File) {
         return id
     }
 
-    fun delete(id: String) = file(id).delete()
+    /** The photo under the plan of project [id], if it has one. */
+    fun backgroundFile(id: String) = File(dir, "$id.bg.jpg")
 
-    fun duplicate(id: String, name: String): String? = load(id)?.let { create(it.copy(projectName = name)) }
+    fun delete(id: String): Boolean {
+        backgroundFile(id).delete()
+        return file(id).delete()
+    }
+
+    fun duplicate(id: String, name: String): String? = load(id)?.let { p ->
+        create(p.copy(projectName = name)).also { copy ->
+            backgroundFile(id).takeIf { it.exists() }?.let { runCatching { it.copyTo(backgroundFile(copy), overwrite = true) } }
+        }
+    }
 
     fun rename(id: String, name: String): Boolean {
         val p = load(id) ?: return false

@@ -28,6 +28,8 @@ data class Project(
     /** Ceiling height in world units, for paint estimates and the 3D view. */
     val wallHeight: Double = 270.0,
     val costs: Costs = Costs(),
+    /** Placement of a photo of a paper plan under the drawing; the image itself is kept next to the project file. */
+    val background: Background? = null,
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
@@ -186,4 +188,13 @@ data class Costs(
     val skirtingPerM: Double = 0.0,
     /** Extra floor covering for cuts, in percent. */
     val wastePercent: Double = 10.0,
+)
+
+/** Where the background photo sits: its top-left corner at ([x], [y]), [scale] world units per image pixel. */
+@Serializable
+data class Background(
+    val x: Double = 0.0,
+    val y: Double = 0.0,
+    val scale: Double = 1.0,
+    val opacity: Double = 0.5,
 )
