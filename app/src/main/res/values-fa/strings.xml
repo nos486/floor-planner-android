@@ -110,4 +110,18 @@
     <string name="format_svg">تصویر برداری (SVG)</string>
     <string name="total">مجموع</string>
     <string name="msg_no_share_app">برنامه‌ای برای اشتراک‌گذاری پیدا نشد</string>
+    <string name="start_from">شروع از</string>
+    <string name="template_info">%1$s متر مربع · %2$d فضا</string>
+    <string name="tpl_blank">نقشه خالی</string>
+    <string name="tpl_studio">سوییت (استودیو)</string>
+    <string name="tpl_one_bed">آپارتمان یک‌خوابه</string>
+    <string name="tpl_two_bed">آپارتمان دوخوابه</string>
+    <string name="tpl_three_bed">آپارتمان سه‌خوابه</string>
+    <string name="rk_living">پذیرایی</string>
+    <string name="rk_kitchen">آشپزخانه</string>
+    <string name="rk_bedroom">اتاق خواب</string>
+    <string name="rk_master_bedroom">اتاق خواب مستر</string>
+    <string name="rk_bathroom">حمام</string>
+    <string name="rk_wc">سرویس بهداشتی</string>
+    <string name="rk_storage">انباری</string>
 </resources>
