@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.UnitSystem
@@ -78,8 +79,22 @@ object PlanExport {
         }
     }
 
-    /** One A4 page: title, the plan to scale, a room schedule and a scale bar. */
+    /** One A4 page per floor: title, the plan to scale, a room schedule and a scale bar. */
     fun pdf(context: Context, p: Project, settings: Settings): ByteArray {
+        val doc = PdfDocument()
+        val floors = Floors.all(p)
+        for (i in floors.indices) {
+            val title = if (floors.size > 1) p.projectName + "  ·  " + floors[i].name else p.projectName
+            pdfPage(context, doc, Floors.switchTo(p, i), settings, title, i + 1)
+        }
+        return ByteArrayOutputStream().use { out ->
+            doc.writeTo(out)
+            doc.close()
+            out.toByteArray()
+        }
+    }
+
+    private fun pdfPage(context: Context, doc: PdfDocument, p: Project, settings: Settings, title: String, number: Int) {
         val (min, max) = bounds(p)
         val landscape = (max.x - min.x) > (max.y - min.y)
         val pw = if (landscape) 842 else 595
@@ -87,8 +102,7 @@ object PlanExport {
         val density = 0.75f
         val tm = measurer(context, density)
         val u = settings.units
-        val doc = PdfDocument()
-        val page = doc.startPage(PdfDocument.PageInfo.Builder(pw, ph, 1).create())
+        val page = doc.startPage(PdfDocument.PageInfo.Builder(pw, ph, number).create())
         val margin = 36f
 
         val cols = if (landscape) 4 else 3
@@ -106,7 +120,7 @@ object PlanExport {
 
             val dark = Color(0xFF1F2937)
             val grey = Color(0xFF6B7280)
-            text(tm, p.projectName, Offset(margin, margin), 18.sp, dark, FontWeight.Bold, planW)
+            text(tm, title, Offset(margin, margin), 18.sp, dark, FontWeight.Bold, planW)
             val date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date())
             text(
                 tm, date + "  ·  " + context.getString(R.string.total_area, Units.area(p.totalAreaM2, u), p.rooms.size),
@@ -146,11 +160,6 @@ object PlanExport {
             )
         }
         doc.finishPage(page)
-        return ByteArrayOutputStream().use { out ->
-            doc.writeTo(out)
-            doc.close()
-            out.toByteArray()
-        }
     }
 
     private fun DrawScope.text(

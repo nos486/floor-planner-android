@@ -7,7 +7,12 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
-enum class FurnitureCategory { LIVING, BEDROOM, KITCHEN, BATHROOM }
+enum class FurnitureCategory {
+    LIVING, BEDROOM, KITCHEN, BATHROOM, STRUCTURE, ELECTRICAL, PLUMBING;
+
+    /** Electrical and plumbing symbols: small, drawn on top and in their own colours. */
+    val isFixture get() = this == ELECTRICAL || this == PLUMBING
+}
 
 /** A kind of furniture in the catalog; sizes are the default footprint in cm. */
 data class FurnitureType(val key: String, val category: FurnitureCategory, val width: Double, val depth: Double)
@@ -50,7 +55,29 @@ object Furniture {
         FurnitureType("bathtub", FurnitureCategory.BATHROOM, 170.0, 75.0),
         FurnitureType("shower", FurnitureCategory.BATHROOM, 90.0, 90.0),
         FurnitureType("basin", FurnitureCategory.BATHROOM, 55.0, 45.0),
+        FurnitureType("column_square", FurnitureCategory.STRUCTURE, 30.0, 30.0),
+        FurnitureType("column_round", FurnitureCategory.STRUCTURE, 30.0, 30.0),
+        FurnitureType("stairs", FurnitureCategory.STRUCTURE, 100.0, 300.0),
+        FurnitureType("spiral_stairs", FurnitureCategory.STRUCTURE, 160.0, 160.0),
+        FurnitureType("fireplace", FurnitureCategory.STRUCTURE, 120.0, 50.0),
+        FurnitureType("socket", FurnitureCategory.ELECTRICAL, 20.0, 12.0),
+        FurnitureType("switch", FurnitureCategory.ELECTRICAL, 16.0, 12.0),
+        FurnitureType("ceiling_light", FurnitureCategory.ELECTRICAL, 40.0, 40.0),
+        FurnitureType("wall_light", FurnitureCategory.ELECTRICAL, 30.0, 15.0),
+        FurnitureType("power_panel", FurnitureCategory.ELECTRICAL, 40.0, 15.0),
+        FurnitureType("ac_unit", FurnitureCategory.ELECTRICAL, 90.0, 25.0),
+        FurnitureType("water_point", FurnitureCategory.PLUMBING, 16.0, 16.0),
+        FurnitureType("drain", FurnitureCategory.PLUMBING, 20.0, 20.0),
+        FurnitureType("gas_valve", FurnitureCategory.PLUMBING, 20.0, 12.0),
+        FurnitureType("water_heater", FurnitureCategory.PLUMBING, 55.0, 55.0),
+        FurnitureType("boiler", FurnitureCategory.PLUMBING, 45.0, 35.0),
+        FurnitureType("radiator", FurnitureCategory.PLUMBING, 100.0, 12.0),
     )
+
+    /** Depth of one stair tread in cm. */
+    const val STEP_DEPTH = 28.0
+
+    fun isFixture(item: Item) = type(item.type)?.category?.isFixture == true
 
     fun type(key: String): FurnitureType? = catalog.firstOrNull { it.key == key }
 
@@ -101,7 +128,7 @@ object Furniture {
         var best: Item? = null
         var bestD = Double.MAX_VALUE
         for (wall in walls) {
-            if (wall.length < 1) continue
+            if (wall.length < 1 || wall.isCurved) continue
             val proj = projectPointOnSegment(center, wall.a, wall.b)
             val gap = proj.distance - wall.thickness / 2 - item.depth / 2
             if (abs(gap) > reach || proj.distance >= bestD) continue
@@ -196,6 +223,51 @@ object Furniture {
             "bathtub" -> listOf(body, rect(l + 8, t + 8, w - 16, d - 16, minOf(w, d) * 0.3), Prim.Circle(l + 20, 0.0, 3.0, fill = true))
             "shower" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t), Prim.Circle(0.0, 0.0, 4.0, fill = true))
             "basin" -> listOf(body, rect(l + w * 0.15, t + d * 0.25, w * 0.7, d * 0.6, minOf(w, d) * 0.3), Prim.Circle(0.0, t + d * 0.12, 2.5, fill = true))
+            "column_square" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
+            "column_round" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Line(-minOf(w, d) * 0.35, -minOf(w, d) * 0.35, minOf(w, d) * 0.35, minOf(w, d) * 0.35))
+            "stairs" -> {
+                // Treads every ~28 cm, with an arrow pointing up the stairs (towards the back).
+                val n = maxOf(2, Math.round(d / STEP_DEPTH).toInt())
+                listOf(body) + (1 until n).map { i -> Prim.Line(l, t + d * i / n, r, t + d * i / n) } + listOf(
+                    Prim.Line(0.0, b - d * 0.08, 0.0, t + d * 0.06),
+                    Prim.Line(0.0, t + d * 0.06, -w * 0.12, t + d * 0.06 + w * 0.15),
+                    Prim.Line(0.0, t + d * 0.06, w * 0.12, t + d * 0.06 + w * 0.15),
+                )
+            }
+            "spiral_stairs" -> {
+                val rr = minOf(w, d) / 2
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Circle(0.0, 0.0, rr * 0.12, fill = true)) +
+                    (0 until 12).map { i -> val a = Math.PI * 2 * i / 12; Prim.Line(cos(a) * rr * 0.12, sin(a) * rr * 0.12, cos(a) * rr, sin(a) * rr) }
+            }
+            "fireplace" -> listOf(body, rect(l + w * 0.2, t + d * 0.25, w * 0.6, d * 0.75, 2.0), Prim.Line(l + w * 0.3, b, l + w * 0.5, t + d * 0.45), Prim.Line(l + w * 0.5, t + d * 0.45, l + w * 0.7, b))
+            "socket" -> {
+                val rr = minOf(w / 2, d)
+                listOf(Prim.Circle(0.0, t, rr, fill = true), Prim.Line(-rr * 0.35, t + rr * 0.2, -rr * 0.35, t + rr * 0.6), Prim.Line(rr * 0.35, t + rr * 0.2, rr * 0.35, t + rr * 0.6))
+            }
+            "switch" -> {
+                val rr = minOf(w, d) * 0.35
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Line(0.0, 0.0, r, b), Prim.Line(r, b, r - rr * 0.8, b))
+            }
+            "ceiling_light" -> {
+                val rr = minOf(w, d) / 2
+                val k = rr * 0.707
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Line(-k, -k, k, k), Prim.Line(-k, k, k, -k))
+            }
+            "wall_light" -> listOf(rect(l, t, w, d * 0.4, fill = true), Prim.Circle(0.0, t + d * 0.4, minOf(w * 0.3, d * 0.6), fill = true))
+            "power_panel" -> listOf(body, Prim.Line(l, b, r, t), rect(l + w * 0.3, t, w * 0.4, d, fill = false))
+            "ac_unit" -> listOf(body) + (1..3).map { i -> Prim.Line(l + 6, t + d * i / 4, r - 6, t + d * i / 4) }
+            "water_point" -> {
+                val rr = minOf(w, d) / 2
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Line(-rr, 0.0, rr, 0.0), Prim.Line(0.0, -rr, 0.0, rr))
+            }
+            "drain" -> {
+                val rr = minOf(w, d) / 2
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Circle(0.0, 0.0, rr * 0.5), Prim.Line(-rr * 0.5, 0.0, rr * 0.5, 0.0))
+            }
+            "gas_valve" -> listOf(Prim.Line(l, t, r, b), Prim.Line(l, b, r, t), Prim.Line(l, t, l, b), Prim.Line(r, t, r, b), Prim.Circle(0.0, 0.0, minOf(w, d) * 0.15, fill = true))
+            "water_heater" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Circle(0.0, 0.0, minOf(w, d) * 0.3), Prim.Line(0.0, -minOf(w, d) * 0.3, 0.0, minOf(w, d) * 0.3))
+            "boiler" -> listOf(body, Prim.Circle(0.0, 0.0, minOf(w, d) * 0.3), Prim.Line(l, t + d * 0.2, r, t + d * 0.2))
+            "radiator" -> listOf(body) + (1 until 8).map { i -> Prim.Line(l + w * i / 8, t, l + w * i / 8, b) }
             else -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
         }
     }

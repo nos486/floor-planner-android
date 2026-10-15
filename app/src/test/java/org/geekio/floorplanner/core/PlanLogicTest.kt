@@ -177,7 +177,7 @@ class PlanLogicTest {
         val svg = ProjectIO.toSvg(p)
         assertTrue(svg.startsWith("<svg"))
         // 4 walls, 2 for the door, 5 for each of the two overall dimensions.
-        assertEquals(4 + 2 + 2 * 5, Regex("<line").findAll(svg).count())
+        assertEquals(4 + 2 + 2 * 5, Regex("<(poly)?line").findAll(svg).count())
         assertTrue(svg.contains("Room 1"))
         assertTrue(svg.contains("12.00 m²"))
     }

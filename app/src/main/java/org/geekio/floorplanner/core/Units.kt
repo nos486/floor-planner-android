@@ -9,6 +9,8 @@ enum class UnitSystem { METRIC, IMPERIAL }
 object Units {
     private const val M_PER_IN = 0.0254
     private const val FT2_PER_M2 = 10.763910416709722
+    private const val FT_PER_M = 3.280839895013123
+    private const val GAL_PER_L = 0.2641720523581484
 
     /** A length such as "3.25 m" or "10' 8\"". */
     fun length(meters: Double, u: UnitSystem, locale: Locale = Locale.getDefault()): String = when (u) {
@@ -32,6 +34,24 @@ object Units {
         UnitSystem.METRIC -> String.format(locale, "%.2f m²", m2)
         UnitSystem.IMPERIAL -> String.format(locale, "%.1f ft²", m2 * FT2_PER_M2)
     }
+
+    /** A paint quantity: litres, or US gallons for imperial. */
+    fun volume(liters: Double, u: UnitSystem, locale: Locale = Locale.getDefault()): String = when (u) {
+        UnitSystem.METRIC -> String.format(locale, "%.1f L", liters)
+        UnitSystem.IMPERIAL -> String.format(locale, "%.1f gal", liters * GAL_PER_L)
+    }
+
+    /** Display units per m², per m and per litre, to turn metric unit prices into displayed ones. */
+    fun areaFactor(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) FT2_PER_M2 else 1.0
+    fun lengthFactor(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) FT_PER_M else 1.0
+    fun volumeFactor(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) GAL_PER_L else 1.0
+
+    fun areaUnit(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) "ft²" else "m²"
+    fun lengthUnit(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) "ft" else "m"
+    fun volumeUnit(u: UnitSystem) = if (u == UnitSystem.IMPERIAL) "gal" else "L"
+
+    /** A whole amount of money with digit grouping. */
+    fun money(v: Double, locale: Locale = Locale.getDefault()): String = String.format(locale, "%,.0f", v)
 
     private fun feetInches(meters: Double, locale: Locale): String {
         val totalIn = (meters / M_PER_IN).roundToInt()

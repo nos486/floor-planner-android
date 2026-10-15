@@ -73,7 +73,10 @@ object GroupOps {
         val labels = ids(group, Kind.LABEL)
         val dims = ids(group, Kind.DIMENSION)
         val moved = p.copy(
-            walls = p.walls.map { if (it.id in walls) it.withPoints(f(it.a), f(it.b)) else it },
+            walls = p.walls.map {
+                if (it.id !in walls) it
+                else it.withPoints(f(it.a), f(it.b)).let { w -> if (mirror) w.copy(bulge = -w.bulge) else w }
+            },
             doors = if (mirror) p.doors.map { if (it.wallId in walls) it.copy(side = -it.side) else it } else p.doors,
             items = p.items.map {
                 if (it.id !in items) it else {

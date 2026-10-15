@@ -20,7 +20,9 @@ object RoomDetector {
 
     fun detect(walls: List<Wall>, scale: Scale, existing: List<Room> = emptyList()): List<Room> {
         if (walls.size < 3) return emptyList()
-        val raw = walls.filter { it.points.size >= 2 }.map { Seg(it.a, it.b) }.filter { it.a.dist(it.b) > 1 }
+        val raw = walls.filter { it.points.size >= 2 }
+            .flatMap { w -> Walls.path(w).zipWithNext { a, b -> Seg(a, b) } }
+            .filter { it.a.dist(it.b) > 1 }
         if (raw.size < 3) return emptyList()
 
         val segments = splitAll(raw)

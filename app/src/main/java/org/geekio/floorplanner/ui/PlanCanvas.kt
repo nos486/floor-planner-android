@@ -8,16 +8,22 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -30,13 +36,19 @@ import org.geekio.floorplanner.core.DimensionGeometry
 import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Furniture
+import org.geekio.floorplanner.core.FurnitureCategory
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.P
+import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.Sun
 import org.geekio.floorplanner.core.Units
+import org.geekio.floorplanner.core.Walls
 import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
 import java.util.Locale
@@ -45,6 +57,12 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 private fun P.o() = Offset(x.toFloat(), y.toFloat())
+
+val ELECTRICAL_COLOR = Color(0xFFD97706)
+val PLUMBING_COLOR = Color(0xFF0284C7)
+val REMOVED_COLOR = Color(0xFFDC2626)
+val ISSUE_COLOR = Color(0xFFEA580C)
+val ADDED_COLOR = Color(0xFF16A34A)
 
 
 /** What to draw and where: screen = world * [zoom] + [pan]. */
@@ -56,6 +74,12 @@ class PlanView(
     val selection: Selection? = null,
     val draft: Draft? = null,
     val group: Set<Selection> = emptySet(),
+    /** The floor below, drawn faintly so walls can be lined up. */
+    val below: Floor? = null,
+    /** Photo of a paper plan under the drawing, placed by [Project.background]. */
+    val backgroundImage: ImageBitmap? = null,
+    /** When comparing with a saved version: walls taken out are shown in red, new walls in green. */
+    val diff: PlanDiff? = null,
 ) {
     fun isSelected(kind: Kind, id: String) =
         (selection?.kind == kind && selection.id == id) || Selection(kind, id) in group ||
@@ -116,6 +140,11 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
     )
     val textMeasurer = rememberTextMeasurer()
     vm.density = LocalDensity.current.density
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(vm.snapTick) {
+        if (vm.snapTick > 0) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+    vm.xdpi = LocalContext.current.resources.displayMetrics.xdpi
 
     Canvas(
         modifier
@@ -127,6 +156,7 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         drawPlan(v, colors, textMeasurer)
         val project = v.project
         val sel = v.selection
+        if (vm.sunlight) drawSunlight(vm, project, textMeasurer, colors)
         (vm.draft as? Draft.MeasureDraft)?.let { d ->
             Dimensions.geometry(d.a, d.b, 0.0)?.let { drawDimensionLine(v, it, textMeasurer, colors.selected, colors) }
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
@@ -147,6 +177,21 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         (vm.draft as? Draft.ArrowDraft)?.let { d ->
             drawArrow(vm.toScreen(d.a), vm.toScreen(d.b), colors.selected, 2.dp.toPx(), 12.dp.toPx())
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
+        }
+        (vm.draft as? Draft.RoomDraft)?.let { d ->
+            val upm = project.scale.unitsPerMeter
+            val a = vm.toScreen(d.a)
+            val b = vm.toScreen(d.b)
+            drawTag(textMeasurer, Units.length(kotlin.math.abs(d.b.x - d.a.x) / upm, v.settings.units),
+                Offset((a.x + b.x) / 2, minOf(a.y, b.y) - 24.dp.toPx()), colors.selected, Color.White)
+            drawTag(textMeasurer, Units.length(kotlin.math.abs(d.b.y - d.a.y) / upm, v.settings.units),
+                Offset(maxOf(a.x, b.x) + 36.dp.toPx(), (a.y + b.y) / 2), colors.selected, Color.White)
+        }
+        // Open chain of walls: where the next wall starts, and the point that closes the room.
+        if (vm.tool == Tool.WALL) vm.chain?.let { (first, end) ->
+            if (first.dist(end) > 0.5) drawCircle(colors.selected, 9.dp.toPx(), vm.toScreen(first), style = Stroke(2.dp.toPx()))
+            drawCircle(colors.selected.copy(alpha = 0.2f), 16.dp.toPx(), vm.toScreen(end))
+            drawCircle(colors.selected, 7.dp.toPx(), vm.toScreen(end))
         }
         (vm.draft as? Draft.WallDraft)?.let { d ->
             val upm = project.scale.unitsPerMeter
@@ -183,16 +228,36 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        // Problems found by the plan check
+        for (issue in vm.issues) {
+            val s = vm.toScreen(issue.at)
+            drawCircle(ISSUE_COLOR.copy(alpha = 0.18f), 22.dp.toPx(), s)
+            drawCircle(ISSUE_COLOR, 11.dp.toPx(), s)
+            drawLine(Color.White, s - Offset(0f, 5.dp.toPx()), s + Offset(0f, 1.5f.dp.toPx()), 2.5f.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(Color.White, 1.5f.dp.toPx(), s + Offset(0f, 5.dp.toPx()))
+        }
+
         // Endpoint handles of the selected wall
         if (sel?.kind == Kind.WALL) {
             project.wall(sel.id)?.let { wall ->
                 for (pt in listOf(wall.a, wall.b)) {
                     val s = vm.toScreen(pt)
-                    drawCircle(colors.background, 10.dp.toPx(), s)
-                    drawCircle(colors.selected, 10.dp.toPx(), s, style = Stroke(3.dp.toPx()))
+                    drawCircle(colors.background, 13.dp.toPx(), s)
+                    drawCircle(colors.selected, 13.dp.toPx(), s, style = Stroke(3.dp.toPx()))
+                }
+                // Bend handle in the middle of the wall
+                if ((vm.toScreen(wall.a) - vm.toScreen(wall.b)).getDistance() > 80.dp.toPx()) {
+                    val m = vm.toScreen(Walls.apex(wall))
+                    val r = 7.dp.toPx()
+                    val diamond = Path().apply {
+                        moveTo(m.x, m.y - r); lineTo(m.x + r, m.y); lineTo(m.x, m.y + r); lineTo(m.x - r, m.y); close()
+                    }
+                    drawPath(diamond, colors.background)
+                    drawPath(diamond, colors.selected, style = Stroke(2.5f.dp.toPx()))
                 }
             }
         }
+        vm.loupe?.let { drawLoupe(vm, v, it, colors, textMeasurer) }
     }
 }
 
@@ -211,6 +276,27 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         translate(v.pan.x, v.pan.y)
         scale(zoom, zoom, pivot = Offset.Zero)
     }) {
+        // Background photo
+        val bgImage = v.backgroundImage
+        val bg = project.background
+        if (bgImage != null && bg != null) {
+            withTransform({
+                translate(bg.x.toFloat(), bg.y.toFloat())
+                scale(bg.scale.toFloat(), bg.scale.toFloat(), pivot = Offset.Zero)
+            }) {
+                drawImage(bgImage, alpha = bg.opacity.toFloat())
+            }
+        }
+
+        // Walls of the floor below
+        v.below?.let { below ->
+            for (wall in below.walls) {
+                Walls.path(wall).zipWithNext { a, b ->
+                    drawLine(colors.wall.copy(alpha = 0.13f), a.o(), b.o(), wall.thickness.toFloat(), cap = StrokeCap.Round)
+                }
+            }
+        }
+
         // Rooms
         project.rooms.forEachIndexed { i, room ->
             val poly = room.polygon
@@ -235,13 +321,18 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
             }
         }
 
-        // Furniture
-        for (item in project.items) {
+        // Furniture, then electrical and plumbing symbols on top
+        for (item in project.items.sortedBy { Furniture.isFixture(it) }) {
             val isSel = v.isSelected(Kind.ITEM, item.id)
+            val stroke = when (Furniture.type(item.type)?.category) {
+                FurnitureCategory.ELECTRICAL -> ELECTRICAL_COLOR
+                FurnitureCategory.PLUMBING -> PLUMBING_COLOR
+                else -> colors.itemStroke
+            }
             drawItem(
                 item,
                 if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
-                if (isSel) colors.selected else colors.itemStroke,
+                if (isSel) colors.selected else stroke,
                 maxOf(1.2f, 1.5f * px),
             )
         }
@@ -249,12 +340,38 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         // Walls
         for (wall in project.walls) {
             val isSel = v.isSelected(Kind.WALL, wall.id)
-            drawLine(
-                if (isSel) colors.selected else colors.wall,
-                wall.a.o(), wall.b.o(),
-                strokeWidth = wall.thickness.toFloat(),
-                cap = StrokeCap.Round,
-            )
+            val base = if (isSel) colors.selected else colors.wall
+            // Low walls are drawn lighter.
+            val color = if (wall.height != null) base.copy(alpha = base.alpha * 0.45f) else base
+            if (wall.isCurved) {
+                val pts = Walls.path(wall)
+                val path = Path().apply {
+                    moveTo(pts[0].x.toFloat(), pts[0].y.toFloat())
+                    pts.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+                }
+                drawPath(path, color, style = Stroke(wall.thickness.toFloat(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            } else {
+                drawLine(color, wall.a.o(), wall.b.o(), strokeWidth = wall.thickness.toFloat(), cap = StrokeCap.Round)
+            }
+        }
+
+        // Changes against a saved version
+        v.diff?.let { d ->
+            val dash = PathEffect.dashPathEffect(floatArrayOf(12 * px, 8 * px))
+            for (wall in d.removedWalls) {
+                val pts = Walls.path(wall)
+                val path = Path().apply {
+                    moveTo(pts[0].x.toFloat(), pts[0].y.toFloat())
+                    pts.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+                }
+                drawPath(path, REMOVED_COLOR.copy(alpha = 0.25f), style = Stroke(wall.thickness.toFloat(), cap = StrokeCap.Round))
+                drawPath(path, REMOVED_COLOR, style = Stroke(maxOf(2f, 2.5f * px), pathEffect = dash))
+            }
+            for (wall in d.addedWalls) {
+                Walls.path(wall).zipWithNext { a, b ->
+                    drawLine(ADDED_COLOR, a.o(), b.o(), (wall.thickness * 0.45).toFloat(), cap = StrokeCap.Round)
+                }
+            }
         }
 
         // Openings
@@ -275,14 +392,22 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 if (d.isDoor) drawDoor(v, Door("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
                 else drawWindow(v, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
             }
+            is Draft.RoomDraft -> {
+                val c = listOf(d.a, P(d.b.x, d.a.y), d.b, P(d.a.x, d.b.y))
+                for (i in c.indices) drawLine(
+                    colors.selected.copy(alpha = 0.6f), c[i].o(), c[(i + 1) % 4].o(),
+                    strokeWidth = v.settings.wallThickness.toFloat(), cap = StrokeCap.Square,
+                )
+            }
             // Drawn on top in screen space below.
             is Draft.MeasureDraft, is Draft.ArrowDraft, is Draft.BoxDraft, null -> Unit
         }
     }
 
     // ----- Screen-space overlays -----
-    drawDimensions(v, tm, colors)
-    if (v.settings.showOverall) {
+    val dims = Layer.DIMENSIONS !in v.settings.hiddenLayers
+    if (dims) drawDimensions(v, tm, colors)
+    if (dims && v.settings.showOverall) {
         for (g in Dimensions.overall(project, (34.dp.toPx() / zoom).toDouble())) {
             drawDimensionLine(v, g, tm, colors.dim, colors)
         }
@@ -338,18 +463,22 @@ fun DrawScope.drawArrow(from: Offset, tip: Offset, color: Color, width: Float, h
 private fun DrawScope.drawDoor(v: PlanView, door: Door, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
     val wall = v.project.wall(door.wallId) ?: return
     val g = PlanOps.openingGeometry(wall, door) ?: return
-    val s = PlanOps.doorSwing(g, door)
     val color = if (selected) c.selected else c.wall
     drawLine(if (ghost) c.selected.copy(alpha = 0.4f) else c.background, g.start.o(), g.end.o(), (wall.thickness + 2).toFloat())
-    drawLine(color, s.hinge.o(), s.leafEnd.o(), strokeWidth = maxOf(3f, 2 * px))
-    val r = s.radius.toFloat()
-    val along = s.strike - s.hinge
-    val start = Math.toDegrees(atan2(along.y, along.x)).toFloat()
-    drawArc(
-        color, start, if (s.clockwise) 90f else -90f, useCenter = false,
-        topLeft = s.hinge.o() - Offset(r, r), size = Size(2 * r, 2 * r),
-        style = Stroke(width = 1.5f * px, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6 * px, 4 * px))),
-    )
+    for (s in PlanOps.doorLeaves(g, door)) {
+        drawLine(color, s.hinge.o(), s.leafEnd.o(), strokeWidth = maxOf(3f, 2 * px))
+        val r = s.radius.toFloat()
+        val along = s.strike - s.hinge
+        val start = Math.toDegrees(atan2(along.y, along.x)).toFloat()
+        drawArc(
+            color, start, if (s.clockwise) 90f else -90f, useCenter = false,
+            topLeft = s.hinge.o() - Offset(r, r), size = Size(2 * r, 2 * r),
+            style = Stroke(width = 1.5f * px, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6 * px, 4 * px))),
+        )
+    }
+    if (door.style == Door.SLIDING) {
+        for ((a, b) in PlanOps.slidingPanels(g)) drawLine(color, a.o(), b.o(), strokeWidth = maxOf(3f, 2 * px))
+    }
 }
 
 private fun DrawScope.drawWindow(v: PlanView, win: PlanWindow, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
@@ -404,10 +533,10 @@ private fun DrawScope.drawDimensions(v: PlanView, tm: TextMeasurer, c: PlanColor
         val b = v.toScreen(wall.b)
         if ((a - b).getDistance() < 70.dp.toPx()) continue
         val dir = (wall.b - wall.a).normalized()
-        val mid = (wall.a + wall.b) * 0.5
+        val mid = Walls.apex(wall)
         val offWorld = mid + dir.perp() * (wall.thickness / 2)
         val screenOff = v.toScreen(offWorld) + Offset(-dir.y.toFloat(), dir.x.toFloat()) * 12.dp.toPx()
-        val layout = tm.measure(Units.lengthShort(wall.length / upm, v.settings.units), style)
+        val layout = tm.measure(Units.lengthShort(Walls.length(wall) / upm, v.settings.units), style)
         drawText(layout, topLeft = screenOff - Offset(layout.size.width / 2f, layout.size.height / 2f))
     }
 }
@@ -463,4 +592,78 @@ private fun DrawScope.drawTag(tm: TextMeasurer, text: String, center: Offset, bg
         Size(layout.size.width + 16.dp.toPx(), layout.size.height + 8.dp.toPx()), CornerRadius(8.dp.toPx()),
     )
     drawText(layout, topLeft = tl)
+}
+
+val SUN_COLOR = Color(0xFFFACC15)
+
+/** Light patches through the windows, clipped to their rooms, and a compass with the sun's direction. */
+private fun DrawScope.drawSunlight(vm: PlanViewModel, project: Project, tm: TextMeasurer, colors: PlanColors) {
+    for (patch in vm.lightPatches) {
+        val room = project.room(patch.roomId) ?: continue
+        val roomPath = Path().apply {
+            room.polygon.forEachIndexed { i, pt -> vm.toScreen(pt).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
+            close()
+        }
+        val light = Path().apply {
+            patch.polygon.forEachIndexed { i, pt -> vm.toScreen(pt).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
+            close()
+        }
+        clipPath(roomPath) {
+            drawPath(light, SUN_COLOR.copy(alpha = 0.45f))
+            drawPath(light, SUN_COLOR, style = Stroke(1.dp.toPx()))
+        }
+    }
+
+    // Compass in the top-left corner, below the select chip
+    val r = 30.dp.toPx()
+    val c = Offset(20.dp.toPx() + r, 64.dp.toPx() + r)
+    drawCircle(colors.labelBg, r + 6.dp.toPx(), c)
+    drawCircle(colors.dim, r, c, style = Stroke(1.dp.toPx()))
+    val n = Sun.northVector(project)
+    val tip = c + Offset((n.x * r).toFloat(), (n.y * r).toFloat())
+    drawArrow(c - Offset((n.x * r * 0.6).toFloat(), (n.y * r * 0.6).toFloat()), tip, colors.label, 2.dp.toPx(), 9.dp.toPx())
+    val nText = tm.measure("N", TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colors.label))
+    val nAt = c + Offset((n.x * (r + 12.dp.toPx())).toFloat(), (n.y * (r + 12.dp.toPx())).toFloat())
+    drawRoundRect(colors.labelBg, nAt - Offset(8.dp.toPx(), 8.dp.toPx()), Size(16.dp.toPx(), 16.dp.toPx()), CornerRadius(8.dp.toPx()))
+    drawText(nText, topLeft = nAt - Offset(nText.size.width / 2f, nText.size.height / 2f))
+    val sun = vm.sunPosition
+    if (sun.isUp) {
+        val s = Sun.towardSun(project, sun)
+        // Nearer the middle the higher the sun is.
+        val k = r * kotlin.math.cos(Math.toRadians(sun.elevation)).toFloat()
+        val at = c + Offset((s.x * k).toFloat(), (s.y * k).toFloat())
+        drawCircle(SUN_COLOR, 7.dp.toPx(), at)
+        drawCircle(Color(0xFFB45309), 7.dp.toPx(), at, style = Stroke(1.5f.dp.toPx()))
+    }
+}
+
+/**
+ * A magnified circle of the plan around [at] (the point under the finger), shown above the finger so the
+ * point being placed isn't hidden by it.
+ */
+private fun DrawScope.drawLoupe(vm: PlanViewModel, v: PlanView, at: P, colors: PlanColors, tm: TextMeasurer) {
+    val k = 2.5f
+    val r = 58.dp.toPx()
+    val gap = 64.dp.toPx()
+    val margin = 8.dp.toPx()
+    val finger = vm.toScreen(at)
+    var c = Offset(finger.x, finger.y - gap - r)
+    // Too near the top: put it beside the finger instead.
+    if (c.y - r < margin) c = Offset(if (finger.x > size.width / 2) finger.x - gap - r else finger.x + gap + r, finger.y)
+    c = Offset(c.x.coerceIn(r + margin, maxOf(r + margin, size.width - r - margin)), c.y.coerceIn(r + margin, maxOf(r + margin, size.height - r - margin)))
+    val zoom = v.zoom * k
+    val lv = PlanView(
+        v.project, c - Offset((at.x * zoom).toFloat(), (at.y * zoom).toFloat()), zoom, v.settings,
+        v.selection, v.draft, v.group, v.below, v.backgroundImage, v.diff,
+    )
+    val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
+    drawCircle(Color.Black.copy(alpha = 0.18f), r + 3.dp.toPx(), c + Offset(0f, 2.dp.toPx()))
+    clipPath(circle) {
+        drawRect(colors.background)
+        drawPlan(lv, colors, tm)
+    }
+    drawCircle(colors.selected, r, c, style = Stroke(2.dp.toPx()))
+    val arm = 9.dp.toPx()
+    drawLine(colors.selected, c - Offset(arm, 0f), c + Offset(arm, 0f), 1.5f.dp.toPx())
+    drawLine(colors.selected, c - Offset(0f, arm), c + Offset(0f, arm), 1.5f.dp.toPx())
 }

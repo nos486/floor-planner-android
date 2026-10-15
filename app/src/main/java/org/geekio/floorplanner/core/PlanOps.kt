@@ -32,6 +32,7 @@ data class Selection(val kind: Kind, val id: String)
 object PlanOps {
     const val MIN_WALL_LENGTH = 5.0
     private const val JOINT_TOLERANCE = 0.5
+    private const val FIXTURE_REACH = 12.0
 
     fun withRooms(p: Project): Project = p.copy(rooms = RoomDetector.detect(p.walls, p.scale, p.rooms))
 
@@ -39,6 +40,18 @@ object PlanOps {
         if (a.dist(b) < MIN_WALL_LENGTH) return null
         val wall = Wall.create(generateId("w"), a, b, thickness)
         return withRooms(p.copy(walls = p.walls + wall)) to wall
+    }
+
+    /** Four walls around the rectangle with opposite corners [a] and [b]; null when a side is too short. */
+    fun addRoom(p: Project, a: P, b: P, thickness: Double): Project? {
+        if (kotlin.math.abs(a.x - b.x) < MIN_WALL_LENGTH || kotlin.math.abs(a.y - b.y) < MIN_WALL_LENGTH) return null
+        val corners = listOf(P(a.x, a.y), P(b.x, a.y), P(b.x, b.y), P(a.x, b.y))
+        // A side lying along an existing wall would only double it.
+        fun covered(x: P) = p.walls.any { Walls.distance(it, x) < 1.0 }
+        val walls = corners.indices.map { i -> corners[i] to corners[(i + 1) % 4] }
+            .filterNot { (s, e) -> covered(s) && covered(e) && covered((s + e) * 0.5) }
+            .map { (s, e) -> Wall.create(generateId("w"), s, e, thickness) }
+        return withRooms(p.copy(walls = p.walls + walls))
     }
 
     /** Moves every wall endpoint that sits on [from] to [to] (keeps junctions connected). */
@@ -95,11 +108,13 @@ object PlanOps {
         val idx = p.walls.indexOfFirst { it.id == wallId }
         if (idx < 0) return null
         val wall = p.walls[idx]
-        val mid = ((wall.a + wall.b) * 0.5).rounded()
+        val mid = Walls.apex(wall).rounded()
         val d1 = wall.a.dist(mid)
         if (d1 < 10 || mid.dist(wall.b) < 10) return null
-        val wa = Wall.create(generateId("w"), wall.a, mid, wall.thickness)
-        val wb = Wall.create(generateId("w"), mid, wall.b, wall.thickness)
+        // A curved wall splits at the top of its arc into two flatter arcs on the same circle.
+        val half = if (wall.isCurved) Walls.arc(wall).let { arc -> Math.signum(wall.bulge) * (arc.radius - Math.sqrt(maxOf(0.0, arc.radius * arc.radius - d1 * d1 / 4))) } else 0.0
+        val wa = Wall.create(generateId("w"), wall.a, mid, wall.thickness).copy(height = wall.height, bulge = roundTo(half, 1))
+        val wb = Wall.create(generateId("w"), mid, wall.b, wall.thickness).copy(height = wall.height, bulge = roundTo(half, 1))
         val walls = p.walls.toMutableList().apply { removeAt(idx); addAll(idx, listOf(wa, wb)) }
         val doors = p.doors.map {
             if (it.wallId != wallId) it
@@ -243,6 +258,45 @@ object PlanOps {
         return DoorSwing(hinge, strike, hinge + swingDir * radius, radius, along.cross(swingDir) > 0)
     }
 
+    /** The swinging leaves of [door]: one, two for a double door, none for a sliding door. */
+    fun doorLeaves(g: OpeningGeometry, door: Door): List<DoorSwing> = when (door.style) {
+        Door.SLIDING -> emptyList()
+        Door.DOUBLE -> {
+            val swingDir = g.normal * (if (door.side < 0) -1.0 else 1.0)
+            val r = g.start.dist(g.end) / 2
+            listOf(g.start to g.center, g.end to g.center).map { (hinge, strike) ->
+                val along = (strike - hinge).normalized()
+                DoorSwing(hinge, strike, hinge + swingDir * r, r, along.cross(swingDir) > 0)
+            }
+        }
+        else -> listOf(doorSwing(g, door))
+    }
+
+    /** The two panels of a sliding door, each a little over half the opening, on either side of the wall's centre line. */
+    fun slidingPanels(g: OpeningGeometry): List<Pair<P, P>> {
+        val w = g.start.dist(g.end)
+        val off = g.normal * (g.wallThickness / 6)
+        return listOf(
+            (g.start + off) to (g.start + g.dir * (w * 0.55) + off),
+            (g.end - g.dir * (w * 0.55) - off) to (g.end - off),
+        )
+    }
+
+    fun setWallBulge(p: Project, wallId: String, bulge: Double): Project {
+        val wall = p.wall(wallId) ?: return p
+        val max = wall.length / 2
+        val b = roundTo(bulge.coerceIn(-max, max), 0)
+        // Doors and windows only sit on straight walls.
+        return withRooms(p.copy(
+            walls = p.walls.map { if (it.id == wallId) it.copy(bulge = if (Math.abs(b) < 2) 0.0 else b) else it },
+            doors = if (Math.abs(b) < 2) p.doors else p.doors.filter { it.wallId != wallId },
+            windows = if (Math.abs(b) < 2) p.windows else p.windows.filter { it.wallId != wallId },
+        ))
+    }
+
+    fun setWallHeight(p: Project, wallId: String, height: Double?) =
+        p.copy(walls = p.walls.map { if (it.id == wallId) it.copy(height = height) else it })
+
     // --- Hit testing (all values in world units) ---
 
     fun hitOpening(p: Project, point: P, tolerance: Double): Selection? {
@@ -264,13 +318,15 @@ object PlanOps {
 
     fun hitWall(p: Project, point: P, tolerance: Double): Wall? =
         p.walls
-            .map { it to projectPointOnSegment(point, it.a, it.b).distance }
+            .map { it to Walls.distance(it, point) }
             .filter { (w, d) -> d <= w.thickness / 2 + tolerance }
             .minByOrNull { it.second }?.first
 
     /** Topmost item under [point] (items drawn last win). */
     fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
-        p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+        // Small electrical and plumbing symbols sit on top of furniture and are easier to hit.
+        p.items.lastOrNull { Furniture.isFixture(it) && Furniture.contains(it, point, maxOf(tolerance, FIXTURE_REACH)) }
+            ?: p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
 
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }

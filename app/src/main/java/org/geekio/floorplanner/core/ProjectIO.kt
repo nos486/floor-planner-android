@@ -1,6 +1,9 @@
 package org.geekio.floorplanner.core
 
+import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.SavedVersion
 import kotlinx.serialization.json.Json
 import java.util.Locale
 
@@ -15,28 +18,51 @@ object ProjectIO {
 
     fun toJson(p: Project): String = json.encodeToString(Project.serializer(), p)
 
+    fun versionToJson(v: SavedVersion): String = json.encodeToString(SavedVersion.serializer(), v)
+
+    fun versionFromJson(text: String): SavedVersion? = runCatching {
+        val v = json.decodeFromString(SavedVersion.serializer(), text)
+        v.copy(project = fromJson(toJson(v.project)) ?: return null)
+    }.getOrNull()
+
     /** Parses a project file; returns null when it isn't a valid floor plan. */
     fun fromJson(text: String): Project? = try {
         val p = json.decodeFromString(Project.serializer(), text)
-        val walls = p.walls.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } }
-        val wallIds = walls.map { it.id }.toSet()
+        val top = clean(Floor("", "", p.walls, p.doors, p.windows, p.rooms, p.items, p.dimensions, p.labels))
         PlanOps.withRooms(
             p.copy(
                 scale = p.scale.copy(
                     unitsPerMeter = p.scale.unitsPerMeter.takeIf { it > 0 } ?: 100.0,
                     gridCm = p.scale.gridCm.takeIf { it > 0 } ?: 20.0,
                 ),
-                walls = walls,
-                doors = p.doors.filter { it.wallId in wallIds },
-                windows = p.windows.filter { it.wallId in wallIds },
-                rooms = p.rooms.filter { it.centroid.size >= 2 },
-                items = p.items.filter { it.width > 0 && it.depth > 0 },
-                labels = p.labels.filter { it.text.isNotBlank() && it.size > 0 },
-                dimensions = p.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
+                walls = top.walls,
+                doors = top.doors,
+                windows = top.windows,
+                rooms = top.rooms,
+                items = top.items,
+                labels = top.labels,
+                dimensions = top.dimensions,
+                floors = p.floors.map(::clean),
+                floorIndex = p.floorIndex.coerceIn(0, maxOf(0, p.floors.size - 1)),
             )
         )
     } catch (e: Exception) {
         null
+    }
+
+    /** Drops broken entries (walls without two points, doors on missing walls, and so on). */
+    private fun clean(f: Floor): Floor {
+        val walls = f.walls.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } }
+        val wallIds = walls.map { it.id }.toSet()
+        return f.copy(
+            walls = walls,
+            doors = f.doors.filter { it.wallId in wallIds },
+            windows = f.windows.filter { it.wallId in wallIds },
+            rooms = f.rooms.filter { it.centroid.size >= 2 },
+            items = f.items.filter { it.width > 0 && it.depth > 0 },
+            labels = f.labels.filter { it.text.isNotBlank() && it.size > 0 },
+            dimensions = f.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
+        )
     }
 
     fun fileName(p: Project, ext: String): String {
@@ -81,9 +107,9 @@ object ProjectIO {
     }
 
     /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
-    fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
+    fun extentPoints(p: Project): List<P> = p.walls.flatMap { Walls.path(it) } + p.items.flatMap { Furniture.corners(it) }
 
-    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC): String {
+    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC, showDimensions: Boolean = true): String {
         val pts = extentPoints(p)
         val margin = 100.0
         val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
@@ -112,22 +138,35 @@ object ProjectIO {
                 sb.append("</g>\n")
             }
         }
-        for (item in p.items) {
-            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="#4b5563" stroke-width="1.5" fill="none">""").append('\n')
+        for (item in p.items.sortedBy { Furniture.isFixture(it) }) {
+            val stroke = when (Furniture.type(item.type)?.category) {
+                FurnitureCategory.ELECTRICAL -> "#d97706"
+                FurnitureCategory.PLUMBING -> "#0284c7"
+                else -> "#4b5563"
+            }
+            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="$stroke" stroke-width="1.5" fill="none">""").append('\n')
             for (prim in Furniture.shapes(item)) sb.append(svgPrim(prim)).append('\n')
             sb.append("</g>\n")
         }
         for (wall in p.walls) {
-            sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
+            val opacity = if (wall.height != null) "0.45" else "1"
+            val pts = Walls.path(wall).joinToString(" ") { "${n(it.x)},${n(it.y)}" }
+            sb.append("""<polyline points="$pts" fill="none" stroke="#2b2f36" stroke-opacity="$opacity" stroke-width="${n(wall.thickness)}" stroke-linecap="round" stroke-linejoin="round"/>""").append('\n')
         }
         for (door in p.doors) {
             val wall = p.wall(door.wallId) ?: continue
             val g = PlanOps.openingGeometry(wall, door) ?: continue
-            val s = PlanOps.doorSwing(g, door)
             sb.append("""<line x1="${n(g.start.x)}" y1="${n(g.start.y)}" x2="${n(g.end.x)}" y2="${n(g.end.y)}" stroke="#ffffff" stroke-width="${n(wall.thickness + 2)}"/>""").append('\n')
-            sb.append("""<line x1="${n(s.hinge.x)}" y1="${n(s.hinge.y)}" x2="${n(s.leafEnd.x)}" y2="${n(s.leafEnd.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
-            val sweep = if (s.clockwise) 1 else 0
-            sb.append("""<path d="M ${n(s.strike.x)} ${n(s.strike.y)} A ${n(s.radius)} ${n(s.radius)} 0 0 $sweep ${n(s.leafEnd.x)} ${n(s.leafEnd.y)}" fill="none" stroke="#2b2f36" stroke-width="1.5" stroke-dasharray="6 4"/>""").append('\n')
+            for (s in PlanOps.doorLeaves(g, door)) {
+                sb.append("""<line x1="${n(s.hinge.x)}" y1="${n(s.hinge.y)}" x2="${n(s.leafEnd.x)}" y2="${n(s.leafEnd.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
+                val sweep = if (s.clockwise) 1 else 0
+                sb.append("""<path d="M ${n(s.strike.x)} ${n(s.strike.y)} A ${n(s.radius)} ${n(s.radius)} 0 0 $sweep ${n(s.leafEnd.x)} ${n(s.leafEnd.y)}" fill="none" stroke="#2b2f36" stroke-width="1.5" stroke-dasharray="6 4"/>""").append('\n')
+            }
+            if (door.style == Door.SLIDING) {
+                for ((a, b) in PlanOps.slidingPanels(g)) {
+                    sb.append("""<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
+                }
+            }
         }
         for (win in p.windows) {
             val wall = p.wall(win.wallId) ?: continue
@@ -139,13 +178,13 @@ object ProjectIO {
             }
         }
         for (wall in p.walls) {
-            if (wall.length < 40) continue
-            val mid = (wall.a + wall.b) * 0.5
+            if (wall.length < 40 || !showDimensions) continue
+            val mid = Walls.apex(wall)
             val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
-            val label = esc(Units.length(wall.length / upm, units, Locale.US))
+            val label = esc(Units.length(Walls.length(wall) / upm, units, Locale.US))
             sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
         }
-        for (g in Dimensions.overall(p, 50.0) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
+        for (g in (if (showDimensions) Dimensions.overall(p, 50.0) else emptyList()) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
             sb.append(svgDimension(g, upm, units)).append('\n')
         }
         for (l in p.labels) {

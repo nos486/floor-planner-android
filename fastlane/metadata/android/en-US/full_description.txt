@@ -4,20 +4,34 @@ Draw walls with your finger and the app finds the rooms for you, showing the are
 
 DRAW
 • Drag to draw walls. Ends snap to other walls, to the grid and to 45° angles
-• See the length of every wall while you draw
-• Add doors (with their swing) and windows by tapping on a wall
-• Start from an empty plan or a ready-made studio, one-, two- or three-bedroom apartment
+• Curved walls, low walls (counters, railings) and columns
+• Add doors (single, double or sliding) and windows by tapping on a wall
+• Several floors, with the floor below shown faintly to line walls up
+• Trace over a photo of a paper plan after setting its scale
+• Start from an empty plan, a ready-made apartment or a furnished two-storey sample home
 
 FURNISH
-• 25 pieces of furniture and fixtures: sofas, beds, tables, wardrobes, kitchen and bathroom
+• Furniture and fixtures for every room, plus stairs, columns and a fireplace
+• Electrical and plumbing points: sockets, switches, lights, water, drains, gas, radiators
 • Move, rotate and resize them; they snap against the walls
 • Give each room a colour and a floor: parquet, tiles, stone or carpet
 
+SEE IT
+• 3D view you can turn and zoom
+• Sunlight: see where the sun falls through the windows in any month and hour, and the hours of sun in each room
+• Actual size: zoom to 1:1 and hold the phone against a real object
+• Layers to show or hide furniture, electrical, plumbing, measurements and notes
+
+CHECK IT
+• Plan check: doors that hit furniture, furniture in walls or in front of windows, narrow rooms, rooms without a door or window
+• Materials: floor covering, wall paint and skirting quantities and costs
+• Home buyer: usable and gross area, price per m², and a side-by-side comparison of homes
+• Versions: save the plan before a renovation and compare what changed
+
 EDIT
 • Move walls and corners; joined walls follow
-• Set an exact wall length, wall thickness, door or window width
+• Set an exact wall length, thickness, height and curve, door or window width
 • Select several things at once to move, copy, rotate, mirror or delete them
-• Split walls, flip doors, rename rooms
 • Undo and redo
 
 MEASURE AND NOTE
@@ -26,13 +40,9 @@ MEASURE AND NOTE
 • Text notes with arrows
 • Metres or feet and inches
 
-ROOMS AND AREA
-• Rooms are detected automatically
-• Area of each room and total area
-
 SAVE AND SHARE
 • Keep as many projects as you like; each one is saved automatically
-• Export as PNG, PDF (with a room schedule and scale bar) or SVG
+• Export as PNG, PDF (one page per floor, with a room schedule and scale bar), SVG or DXF for CAD
 • Share the image or PDF straight to any app
 • Open and save projects as JSON files
 

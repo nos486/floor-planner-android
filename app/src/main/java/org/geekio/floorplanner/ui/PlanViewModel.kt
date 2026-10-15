@@ -3,6 +3,11 @@ package org.geekio.floorplanner.ui
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,11 +16,25 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Backgrounds
+import org.geekio.floorplanner.core.Compare
 import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.Issue
+import org.geekio.floorplanner.core.LightPatch
+import org.geekio.floorplanner.core.RoomSun
+import org.geekio.floorplanner.core.Sun
+import org.geekio.floorplanner.core.Samples
+import org.geekio.floorplanner.core.SampleText
+import org.geekio.floorplanner.core.SunPosition
+import org.geekio.floorplanner.core.PlanCheck
+import org.geekio.floorplanner.core.PlanDiff
+import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.GroupOps
 import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
+import org.geekio.floorplanner.core.Layers
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.ProjectEntry
@@ -28,6 +47,8 @@ import org.geekio.floorplanner.core.generateId
 import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
 import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Walls
+import org.geekio.floorplanner.model.Costs
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +58,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-enum class Tool { SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT }
+enum class Tool {
+    SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT,
+    /** Draw a line over the background photo to give it its real scale. */
+    CALIBRATE,
+    /** Drag the background photo around. */
+    BACKGROUND,
+}
 
 /** Something being drawn that is not part of the project yet. */
 sealed interface Draft {
@@ -46,7 +73,12 @@ sealed interface Draft {
     data class MeasureDraft(val a: P, val b: P, val snap: SnapType) : Draft
     data class ArrowDraft(val a: P, val b: P) : Draft
     data class BoxDraft(val a: P, val b: P) : Draft
+    /** A rectangular room being drawn from corner [a] to corner [b]. */
+    data class RoomDraft(val a: P, val b: P) : Draft
 }
+
+/** How the wall tool draws: one wall at a time (chained) or a whole rectangular room. */
+enum class WallMode { LINE, ROOM }
 
 /** A label waiting for its text: shown as a dialog, then added at [at] with an arrow to [tip] if set. */
 data class LabelRequest(val at: P, val tip: P?)
@@ -61,6 +93,7 @@ data class Settings(
     /** Text height of new labels, in cm. */
     val labelSize: Double = 25.0,
     val units: UnitSystem = UnitSystem.METRIC,
+    val hiddenLayers: Set<Layer> = emptySet(),
 )
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
@@ -91,7 +124,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var zoom by mutableStateOf(1f)
         private set
-    private var viewSize = IntSize.Zero
+    var viewSize = IntSize.Zero
+        private set
     private var fittedOnce = false
 
     /** Screen density, used to turn finger-sized tolerances into world units. */
@@ -134,6 +168,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             windowWidth = dbl("windowWidth", d.windowWidth),
             labelSize = dbl("labelSize", d.labelSize),
             units = runCatching { UnitSystem.valueOf(p.getString("units", null) ?: "") }.getOrDefault(d.units),
+            hiddenLayers = p.getStringSet("hiddenLayers", emptySet()).orEmpty()
+                .mapNotNull { name -> Layer.entries.firstOrNull { it.name == name } }.toSet(),
         )
     }
 
@@ -149,6 +185,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             ?.putFloat("windowWidth", s.windowWidth.toFloat())
             ?.putFloat("labelSize", s.labelSize.toFloat())
             ?.putString("units", s.units.name)
+            ?.putStringSet("hiddenLayers", s.hiddenLayers.map { it.name }.toSet())
             ?.apply()
     }
 
@@ -184,6 +221,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun undo() {
+        endChain()
         val prev = undoStack.removeLastOrNull() ?: return
         redoStack.addLast(project)
         project = prev
@@ -191,6 +229,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun redo() {
+        endChain()
         val next = redoStack.removeLastOrNull() ?: return
         undoStack.addLast(project)
         project = next
@@ -246,8 +285,233 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         project = p
         selection = null
         draft = null
+        endChain()
         tool = if (p.walls.isEmpty()) Tool.WALL else Tool.SELECT
         fittedOnce = false
+        fitToScreen()
+        loadBackground(id)
+        comparing = null
+        versions = emptyList()
+    }
+
+    // ---------------- Plan check ----------------
+
+    /** True while the list of problems found in the plan is open. */
+    var checking by mutableStateOf(false)
+        private set
+
+    private var issueCache: Pair<Project, List<Issue>>? = null
+
+    /** Problems in the open floor while [checking], kept up to date as the plan changes. */
+    val issues: List<Issue>
+        get() {
+            if (!checking) return emptyList()
+            issueCache?.let { (p, list) -> if (p === project) return list }
+            return PlanCheck.run(project).also { issueCache = project to it }
+        }
+
+    fun checkPlan() {
+        selection = null
+        multiSelect = false
+        group = emptySet()
+        sunlight = false
+        checking = true
+        if (issues.isEmpty()) {
+            checking = false
+            message = R.string.msg_no_issues
+        }
+    }
+
+    fun stopChecking() {
+        checking = false
+    }
+
+    /** Centres the view on [issue]. */
+    fun focusIssue(issue: Issue) {
+        pan = Offset(viewSize.width / 2f - (issue.at.x * zoom).toFloat(), viewSize.height / 2f - (issue.at.y * zoom).toFloat())
+    }
+
+    // ---------------- Sunlight ----------------
+
+    /** True while the sunlight view is open. */
+    var sunlight by mutableStateOf(false)
+        private set
+    var sunMonth by mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1)
+        private set
+    /** Local solar time, 12 = noon. */
+    var sunHour by mutableStateOf(12.0)
+        private set
+
+    val sunPosition: SunPosition get() = Sun.position(project.latitude, Sun.midMonthDay(sunMonth), sunHour)
+
+    private var patchCache: Triple<Project, SunPosition, List<LightPatch>>? = null
+    private var hoursCache: Triple<Project, Int, List<RoomSun>>? = null
+
+    /** Patches of sunlight on the floor of the open floor, empty unless [sunlight]. */
+    val lightPatches: List<LightPatch>
+        get() {
+            if (!sunlight) return emptyList()
+            val sun = sunPosition
+            patchCache?.let { (p, s, list) -> if (p === project && s == sun) return list }
+            return Sun.patches(project, sun).also { patchCache = Triple(project, sun, it) }
+        }
+
+    /** Hours of direct sun per room in the middle of [sunMonth]. */
+    val roomSun: List<RoomSun>
+        get() {
+            hoursCache?.let { (p, m, list) -> if (p === project && m == sunMonth) return list }
+            return Sun.hours(project, Sun.midMonthDay(sunMonth)).also { hoursCache = Triple(project, sunMonth, it) }
+        }
+
+    fun showSunlight() {
+        selection = null
+        multiSelect = false
+        group = emptySet()
+        checking = false
+        sunlight = true
+    }
+
+    fun stopSunlight() {
+        sunlight = false
+    }
+
+    fun setSunTime(month: Int, hour: Double) {
+        sunMonth = month.coerceIn(1, 12)
+        sunHour = hour.coerceIn(0.0, 24.0)
+    }
+
+    /** Turns the north arrow by [degrees] (clockwise). */
+    fun rotateNorth(degrees: Double) = commit(project.copy(north = (project.north + degrees).mod(360.0)))
+
+    fun setLatitude(latitude: Double) = commit(project.copy(latitude = latitude.coerceIn(-66.0, 66.0)))
+
+    // ---------------- Versions ----------------
+
+    /** Saved versions of the open project, newest first. */
+    var versions by mutableStateOf<List<ProjectStore.VersionEntry>>(emptyList())
+        private set
+
+    /** The version being compared with the plan: its name and its copy of the open floor. */
+    var comparing by mutableStateOf<Pair<String, Project>?>(null)
+        private set
+
+    private var diffCache: Triple<Project, Project, PlanDiff>? = null
+
+    /** Differences between [comparing] and the plan, or null when not comparing. */
+    val diff: PlanDiff?
+        get() {
+            val other = comparing?.second ?: return null
+            diffCache?.let { (a, b, d) -> if (a === other && b === project) return d }
+            return Compare.diff(other, project).also { diffCache = Triple(other, project, it) }
+        }
+
+    fun refreshVersions() {
+        val store = store ?: return
+        val id = currentId ?: return
+        viewModelScope.launch { versions = withContext(Dispatchers.IO) { store.versions(id) } }
+    }
+
+    fun saveVersion(name: String) {
+        val store = store ?: return
+        val id = currentId ?: return
+        val snapshot = project
+        val n = name.trim().ifEmpty { return }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { store.saveVersion(id, n, snapshot) }
+            message = if (ok) R.string.msg_version_saved else R.string.msg_save_failed
+            refreshVersions()
+        }
+    }
+
+    /** Replaces the plan with a saved version (one undo step brings the current plan back). */
+    fun restoreVersion(key: String) {
+        val id = currentId ?: return
+        val p = store?.loadVersion(id, key) ?: return
+        comparing = null
+        selection = null
+        group = emptySet()
+        commit(p.copy(projectName = project.projectName))
+        fitToScreen()
+    }
+
+    fun deleteVersion(key: String) {
+        val id = currentId ?: return
+        store?.deleteVersion(id, key)
+        refreshVersions()
+    }
+
+    fun compareWith(entry: ProjectStore.VersionEntry) {
+        val id = currentId ?: return
+        val p = store?.loadVersion(id, entry.key) ?: return
+        comparing = entry.name to Floors.switchTo(p, project.floorIndex)
+    }
+
+    fun stopComparing() {
+        comparing = null
+    }
+
+    // ---------------- Background photo ----------------
+
+    /** The photo under the plan, loaded from the project's image file. */
+    var backgroundImage by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    /** A line drawn with the calibrate tool, waiting for its real length. */
+    var calibrateRequest by mutableStateOf<Pair<P, P>?>(null)
+
+    private fun loadBackground(id: String) {
+        backgroundImage = null
+        val file = store?.backgroundFile(id) ?: return
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) { if (file.exists()) runCatching { BitmapFactory.decodeFile(file.path) }.getOrNull() else null }
+            if (currentId == id) backgroundImage = bmp?.asImageBitmap()
+        }
+    }
+
+    /** Puts the picture at [uri] under the plan, about as wide as the screen; then the user sets its scale. */
+    fun setBackground(uri: Uri) {
+        val id = currentId ?: return
+        val file = store?.backgroundFile(id) ?: return
+        val resolver = getApplication<Application>().contentResolver
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) {
+                runCatching {
+                    val b = ImageFiles.decode(resolver, uri, BACKGROUND_MAX_PX)
+                    file.outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+                    b
+                }.getOrNull()
+            }
+            if (bmp == null) {
+                message = R.string.msg_image_failed
+                return@launch
+            }
+            backgroundImage = bmp.asImageBitmap()
+            val center = toWorld(Offset(viewSize.width / 2f, viewSize.height / 2f))
+            val span = viewSize.width / zoom * 0.9
+            commit(project.copy(background = Backgrounds.place(bmp.width, bmp.height, center, span)))
+            selectTool(Tool.CALIBRATE)
+        }
+    }
+
+    fun removeBackground() {
+        currentId?.let { id -> store?.backgroundFile(id)?.delete() }
+        backgroundImage = null
+        commit(project.copy(background = null))
+        if (tool == Tool.CALIBRATE || tool == Tool.BACKGROUND) selectTool(Tool.SELECT)
+    }
+
+    fun setBackgroundOpacity(opacity: Double) {
+        val bg = project.background ?: return
+        commit(project.copy(background = bg.copy(opacity = opacity.coerceIn(0.1, 1.0))))
+    }
+
+    /** Gives the background its scale from the line in [calibrateRequest] being [meters] long. */
+    fun calibrate(meters: Double) {
+        val (a, b) = calibrateRequest ?: return
+        calibrateRequest = null
+        val bg = project.background ?: return
+        commit(project.copy(background = Backgrounds.calibrate(bg, a, b, meters * project.scale.unitsPerMeter)))
+        selectTool(Tool.SELECT)
         fitToScreen()
     }
 
@@ -275,6 +539,22 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Imports a JSON project file as a new project; false when it isn't a floor plan. */
+    /** Creates a copy of the furnished two-storey sample home and opens it. */
+    fun openSample() {
+        val app = getApplication<Application>()
+        val p = Samples.home({ app.getString(roomKeyName(it)) }) { t ->
+            app.getString(
+                when (t) {
+                    SampleText.NAME -> R.string.sample_name
+                    SampleText.GROUND_FLOOR -> R.string.ground_floor
+                    SampleText.FIRST_FLOOR -> R.string.first_floor
+                    SampleText.ENTRANCE -> R.string.entrance
+                },
+            )
+        }
+        createProject(p)
+    }
+
     fun importJson(text: String?): Boolean {
         val loaded = text?.let { ProjectIO.fromJson(it) } ?: return false
         createProject(loaded)
@@ -293,7 +573,15 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         commit(project.copy(scale = project.scale.copy(gridCm = cm.coerceIn(5.0, 200.0))))
     }
 
+    fun setPrice(price: Double?) = commit(project.copy(price = price))
+
+    fun setEstimateInputs(height: Double, costs: Costs) = commit(project.copy(wallHeight = height, costs = costs))
+
     fun updateSettings(s: Settings) {
+        if (s.hiddenLayers != settings.hiddenLayers) {
+            selection = null
+            group = emptySet()
+        }
         settings = s
         saveSettings(s)
     }
@@ -310,11 +598,107 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTool(t: Tool) {
         tool = t
         draft = null
+        endChain()
         if (t != Tool.SELECT) {
             selection = null
             multiSelect = false
             group = emptySet()
         }
+    }
+
+    // ---------------- Drawing walls ----------------
+
+    var wallMode by mutableStateOf(WallMode.LINE)
+        private set
+
+    /** First point and current end of walls drawn one after another; null when no chain is open. */
+    var chain by mutableStateOf<Pair<P, P>?>(null)
+        private set
+
+    /** The last wall of the open chain, so its length can be typed in. */
+    var chainWallId by mutableStateOf<String?>(null)
+        private set
+
+    /** Where the finger is while drawing or moving a corner, for the magnifier; null otherwise. */
+    var loupe by mutableStateOf<P?>(null)
+        private set
+
+    /** True while a finger drags on the plan. */
+    var dragging by mutableStateOf(false)
+        private set
+
+    /** Bumped each time a dragged point catches a wall end or an angle, for a short vibration. */
+    var snapTick by mutableStateOf(0)
+        private set
+    private var lastSnap = SnapType.NONE
+
+    private fun feel(type: SnapType) {
+        val strong = type == SnapType.ENDPOINT || type == SnapType.ANGLE
+        if (strong && type != lastSnap) snapTick++
+        lastSnap = type
+    }
+
+    fun chooseWallMode(mode: WallMode) {
+        wallMode = mode
+        endChain()
+    }
+
+    fun endChain() {
+        chain = null
+        chainWallId = null
+    }
+
+    /** Continues the chain with a wall from its end to [end]; closes it when [end] is its first point. */
+    private fun extendChain(start: P, end: P, first: P) {
+        val (p, wall) = PlanOps.addWall(project, start, end, settings.wallThickness) ?: return
+        commit(p)
+        chainWallId = wall.id
+        chain = if (end.dist(first) < 0.5) null else first to end
+        if (chain == null) {
+            chainWallId = null
+            message = R.string.msg_room_closed
+        }
+    }
+
+    /** A tap with the wall tool: starts a chain, or adds the next wall of the open one. */
+    private fun tapWallPoint(w: P) {
+        val c = chain
+        if (c == null) {
+            val s = snap(w)
+            chain = s.point to s.point
+            chainWallId = null
+            return
+        }
+        val s = snap(w, start = c.second, exclude = c.second)
+        extendChain(c.second, s.point, c.first)
+    }
+
+    /** Sets the length of the chain's last wall and moves the chain's end with it. */
+    fun setChainWallLength(meters: Double) {
+        val id = chainWallId ?: return
+        val c = chain ?: return
+        setWallLengthMeters(id, meters)
+        project.wall(id)?.let { chain = c.first to it.b }
+    }
+
+    /** When true the bottom panel shows only its title row, leaving the plan visible. */
+    var inspectorCollapsed by mutableStateOf(false)
+
+    /** Top middle of the selected thing on screen, where its floating action bar sits; null when nothing is selected. */
+    fun selectionAnchor(): Offset? {
+        val sel = selection ?: return null
+        val p = project
+        val pts: List<P> = when (sel.kind) {
+            Kind.WALL -> p.wall(sel.id)?.let { Walls.path(it) }
+            Kind.ITEM -> p.item(sel.id)?.let { Furniture.corners(it) }
+            Kind.DOOR -> p.door(sel.id)?.let { o -> p.wall(o.wallId)?.let { PlanOps.openingGeometry(it, o) } }?.let { listOf(it.start, it.end) }
+            Kind.WINDOW -> p.window(sel.id)?.let { o -> p.wall(o.wallId)?.let { PlanOps.openingGeometry(it, o) } }?.let { listOf(it.start, it.end) }
+            Kind.ROOM -> p.room(sel.id)?.polygon
+            Kind.LABEL -> p.label(sel.id)?.let { listOf(it.anchor) }
+            Kind.DIMENSION -> p.dimension(sel.id)?.let { listOf(it.a, it.b) }
+        }?.takeIf { it.isNotEmpty() } ?: return null
+        val screen = pts.map { toScreen(it) }
+        return Offset((screen.minOf { it.x } + screen.maxOf { it.x }) / 2, screen.minOf { it.y })
     }
 
     // ---------------- Multiple selection ----------------
@@ -333,7 +717,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectAll() {
-        group = GroupOps.inBox(project, P(-1e9, -1e9), P(1e9, 1e9))
+        group = GroupOps.inBox(shown, P(-1e9, -1e9), P(1e9, 1e9))
     }
 
     fun duplicateGroup() {
@@ -376,6 +760,12 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun flipDoorSide(id: String) = commit(PlanOps.updateDoor(project, id) { it.copy(side = if (it.side < 0) 1 else -1) })
 
+    fun setDoorStyle(id: String, style: String?) = commit(PlanOps.updateDoor(project, id) { it.copy(style = style) })
+
+    fun setWallBulge(id: String, bulge: Double) = commit(PlanOps.setWallBulge(project, id, bulge))
+
+    fun setWallHeight(id: String, height: Double?) = commit(PlanOps.setWallHeight(project, id, height))
+
     fun flipDoorHinge(id: String) = commit(PlanOps.updateDoor(project, id) { it.copy(flipped = !it.flipped) })
 
     fun renameRoom(id: String, name: String) = commit(PlanOps.renameRoom(project, id, name))
@@ -383,6 +773,25 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun setRoomColor(id: String, color: String?) = commit(PlanOps.setRoomColor(project, id, color))
 
     fun setRoomFloor(id: String, floor: String?) = commit(PlanOps.setRoomFloor(project, id, floor))
+
+    // ---------------- Floors ----------------
+
+    private fun onFloor(p: Project) {
+        selection = null
+        group = emptySet()
+        draft = null
+        endChain()
+        commit(p)
+    }
+
+    fun switchFloor(index: Int) = onFloor(Floors.switchTo(project, index))
+
+    /** Adds a floor on top and opens it; [firstName] names the existing floor when the plan had only one. */
+    fun addFloor(name: String, firstName: String) = onFloor(Floors.add(project, name, firstName))
+
+    fun deleteFloor(index: Int) = onFloor(Floors.delete(project, index))
+
+    fun renameFloor(index: Int, name: String) = commit(Floors.rename(project, index, name))
 
     // ---------------- Labels ----------------
 
@@ -449,7 +858,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Viewport ----------------
 
-    fun view() = PlanView(project, pan, zoom, settings, selection, draft, group)
+    /** The project without its hidden layers: what is drawn, exported and can be tapped. */
+    val shown: Project get() = Layers.visible(project, settings.hiddenLayers)
+
+    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project), backgroundImage, diff)
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
@@ -485,6 +897,23 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         pan = Offset(w / 2 - cx * zoom, h / 2 - cy * zoom)
     }
 
+    /** Physical pixels per inch across the screen, set by the canvas; 0 until known. */
+    var xdpi = 0f
+
+    /** Zoom at which the plan shows at its real size on this screen, null until the screen is known. */
+    val trueScaleZoom: Float?
+        get() = if (xdpi <= 0f) null else (xdpi / 2.54 * 100 / project.scale.unitsPerMeter).toFloat()
+
+    val isTrueScale: Boolean get() = trueScaleZoom?.let { kotlin.math.abs(zoom / it - 1) < 0.01f } ?: false
+
+    /** Zooms around the middle of the view so 1 cm on the plan is 1 cm on the glass. */
+    fun showTrueScale() {
+        val target = (trueScaleZoom ?: return).coerceIn(MIN_ZOOM, MAX_ZOOM)
+        val mid = Offset(viewSize.width / 2f, viewSize.height / 2f)
+        pan = mid - (mid - pan) * (target / zoom)
+        zoom = target
+    }
+
     fun onTransform(centroid: Offset, panDelta: Offset, zoomChange: Float) {
         val newZoom = (zoom * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
         val p = pan + panDelta
@@ -497,12 +926,16 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private sealed interface DragOp {
         data class Pan(var last: Offset) : DragOp
         data class DrawWall(val start: P) : DragOp
+        data class DrawRoom(val start: P) : DragOp
         data class PlaceOpening(val isDoor: Boolean) : DragOp
         data class MoveVertex(val origin: Project, val from: P) : DragOp
+        data class BendWall(val origin: Project, val wallId: String) : DragOp
         data class MoveWall(val origin: Project, val wallId: String, val startWorld: P) : DragOp
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
         data class DrawMeasure(val start: P) : DragOp
         data class DrawArrow(val start: P) : DragOp
+        data class DrawCalibration(val start: P) : DragOp
+        data class MoveBackground(val origin: Project, val startWorld: P) : DragOp
         data class BoxSelect(val start: P) : DragOp
         data class MoveGroup(val origin: Project, val startWorld: P) : DragOp
         data class MoveLabel(val origin: Project, val id: String, val startWorld: P) : DragOp
@@ -522,15 +955,17 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         val w = toWorld(screen)
         when (tool) {
             Tool.SELECT -> if (multiSelect) {
-                PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }?.let { m ->
+                PlanOps.hit(shown, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }?.let { m ->
                     group = if (m in group) group - m else group + m
                 }
             } else {
-                selection = PlanOps.hit(project, w, worldTol(HIT_DP))
+                selection = PlanOps.hit(shown, w, worldTol(HIT_DP))
             }
-            Tool.WALL -> message = R.string.hint_wall
+            Tool.WALL -> if (wallMode == WallMode.LINE) tapWallPoint(w) else message = R.string.hint_room
             Tool.MEASURE -> message = R.string.hint_measure
             Tool.TEXT -> labelRequest = LabelRequest(w, null)
+            Tool.CALIBRATE -> message = R.string.hint_calibrate
+            Tool.BACKGROUND -> Unit
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
                 placeOpeningDraft()
@@ -540,11 +975,19 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onDragStart(screen: Offset) {
         val w = toWorld(screen)
+        dragging = true
+        lastSnap = SnapType.NONE
         dragOp = when (tool) {
             Tool.WALL -> {
                 val s = snap(w)
-                draft = Draft.WallDraft(s.point, s.point, s.type)
-                DragOp.DrawWall(s.point)
+                feel(s.type)
+                if (wallMode == WallMode.ROOM) {
+                    draft = Draft.RoomDraft(s.point, s.point)
+                    DragOp.DrawRoom(s.point)
+                } else {
+                    draft = Draft.WallDraft(s.point, s.point, s.type)
+                    DragOp.DrawWall(s.point)
+                }
             }
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
@@ -560,11 +1003,16 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 DragOp.DrawArrow(w)
             }
             Tool.SELECT -> if (multiSelect) groupDragStart(w) else selectDragStart(screen, w)
+            Tool.CALIBRATE -> {
+                draft = Draft.MeasureDraft(w, w, SnapType.NONE)
+                DragOp.DrawCalibration(w)
+            }
+            Tool.BACKGROUND -> DragOp.MoveBackground(project, w)
         }
     }
 
     private fun groupDragStart(w: P): DragOp {
-        val hit = PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }
+        val hit = PlanOps.hit(shown, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }
         if (hit != null && hit in group) return DragOp.MoveGroup(project, w)
         draft = Draft.BoxDraft(w, w)
         return DragOp.BoxSelect(w)
@@ -583,6 +1031,12 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         if (sel?.kind == Kind.WALL) {
             project.wall(sel.id)?.let { wall ->
                 val handleTol = worldTol(HANDLE_DP)
+                if ((toScreen(wall.a) - toScreen(wall.b)).getDistance() > BEND_HANDLE_MIN_DP * density &&
+                    Walls.apex(wall).dist(w) <= worldTol(HANDLE_DP * 0.7f) &&
+                    minOf(wall.a.dist(w), wall.b.dist(w)) > handleTol
+                ) {
+                    return DragOp.BendWall(project, wall.id)
+                }
                 listOf(wall.a, wall.b).minByOrNull { it.dist(w) }?.takeIf { it.dist(w) <= handleTol }?.let {
                     return DragOp.MoveVertex(project, it)
                 }
@@ -597,15 +1051,15 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
         }
-        PlanOps.hitLabel(project, w, tol)?.let { l ->
+        PlanOps.hitLabel(shown, w, tol)?.let { l ->
             selection = Selection(Kind.LABEL, l.id)
             return DragOp.MoveLabel(project, l.id, w)
         }
-        Dimensions.hit(project, w, tol)?.let { d ->
+        Dimensions.hit(shown, w, tol)?.let { d ->
             selection = Selection(Kind.DIMENSION, d.id)
             return DragOp.MoveDimension(project, d.id)
         }
-        PlanOps.hitItem(project, w)?.let { item ->
+        PlanOps.hitItem(shown, w)?.let { item ->
             selection = Selection(Kind.ITEM, item.id)
             return DragOp.MoveItem(project, item.id, P(item.x, item.y) - w)
         }
@@ -625,13 +1079,28 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.DrawWall -> {
                 val s = snap(w, start = op.start, exclude = op.start)
+                feel(s.type)
                 draft = Draft.WallDraft(op.start, s.point, s.type)
+                loupe = s.point
+            }
+            is DragOp.DrawRoom -> {
+                // Grid and wall ends only: an angle snap would pull the corner off the rectangle.
+                val s = snap(w)
+                feel(s.type)
+                draft = Draft.RoomDraft(op.start, s.point)
+                loupe = s.point
             }
             is DragOp.PlaceOpening -> updateOpeningDraft(w, op.isDoor)
             is DragOp.MoveVertex -> {
                 val others = op.origin.walls
                 val s = snap(w, exclude = op.from, walls = others)
+                feel(s.type)
                 project = PlanOps.moveVertex(op.origin, op.from, s.point)
+                loupe = s.point
+            }
+            is DragOp.BendWall -> {
+                val wall = op.origin.wall(op.wallId) ?: return
+                project = PlanOps.setWallBulge(op.origin, op.wallId, Walls.bulgeThrough(wall, w))
             }
             is DragOp.MoveWall -> {
                 val delta = w - op.startWorld
@@ -650,9 +1119,16 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.DrawMeasure -> {
                 val s = snap(w, start = op.start, exclude = op.start)
+                feel(s.type)
                 draft = Draft.MeasureDraft(op.start, s.point, s.type)
+                loupe = s.point
             }
             is DragOp.DrawArrow -> draft = Draft.ArrowDraft(op.start, w)
+            is DragOp.DrawCalibration -> draft = Draft.MeasureDraft(op.start, w, SnapType.NONE)
+            is DragOp.MoveBackground -> {
+                val bg = op.origin.background ?: return
+                project = op.origin.copy(background = Backgrounds.move(bg, w - op.startWorld))
+            }
             is DragOp.BoxSelect -> draft = Draft.BoxDraft(op.start, w)
             is DragOp.MoveGroup -> {
                 val delta = w - op.startWorld
@@ -687,13 +1163,24 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         when (val op = dragOp) {
             is DragOp.DrawWall -> {
                 val d = draft as? Draft.WallDraft
-                if (d != null) {
-                    PlanOps.addWall(project, d.a, d.b, settings.wallThickness)?.let { (p, _) -> commit(p) }
-                }
                 draft = null
+                if (d != null) {
+                    // A drag from the end of the open chain carries it on; any other drag starts a new one.
+                    val first = chain?.takeIf { it.second.dist(d.a) < 0.5 }?.first ?: d.a
+                    if (d.a.dist(d.b) >= 1) {
+                        chain = first to d.a
+                        extendChain(d.a, d.b, first)
+                    }
+                }
+            }
+            is DragOp.DrawRoom -> {
+                val d = draft as? Draft.RoomDraft
+                draft = null
+                if (d != null) PlanOps.addRoom(project, d.a, d.b, settings.wallThickness)?.let { commit(it) }
             }
             is DragOp.PlaceOpening -> placeOpeningDraft()
             is DragOp.MoveVertex -> commit(project, before = op.origin)
+            is DragOp.BendWall -> commit(project, before = op.origin)
             is DragOp.MoveWall -> commit(project, before = op.origin)
             is DragOp.SlideOpening -> commit(project, before = op.origin)
             is DragOp.DrawMeasure -> {
@@ -710,7 +1197,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveLabel -> commit(project, before = op.origin)
             is DragOp.MoveGroup -> commit(project, before = op.origin)
             is DragOp.BoxSelect -> {
-                (draft as? Draft.BoxDraft)?.let { group = group + GroupOps.inBox(project, it.a, it.b) }
+                (draft as? Draft.BoxDraft)?.let { group = group + GroupOps.inBox(shown, it.a, it.b) }
                 draft = null
             }
             is DragOp.DrawArrow -> {
@@ -721,14 +1208,23 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.MoveItem -> commit(project, before = op.origin)
             is DragOp.RotateItem -> commit(project, before = op.origin)
+            is DragOp.MoveBackground -> commit(project, before = op.origin)
+            is DragOp.DrawCalibration -> {
+                val d = draft as? Draft.MeasureDraft
+                draft = null
+                if (d != null && d.a.dist(d.b) > worldTol(HIT_DP)) calibrateRequest = d.a to d.b
+            }
             is DragOp.Pan, null -> Unit
         }
         dragOp = null
+        loupe = null
+        dragging = false
     }
 
     fun onDragCancel() {
         when (val op = dragOp) {
             is DragOp.MoveVertex -> project = op.origin
+            is DragOp.BendWall -> project = op.origin
             is DragOp.MoveWall -> project = op.origin
             is DragOp.SlideOpening -> project = op.origin
             is DragOp.MoveItem -> project = op.origin
@@ -736,14 +1232,17 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveLabel -> project = op.origin
             is DragOp.MoveGroup -> project = op.origin
             is DragOp.RotateItem -> project = op.origin
+            is DragOp.MoveBackground -> project = op.origin
             else -> Unit
         }
         draft = null
         dragOp = null
+        loupe = null
+        dragging = false
     }
 
     private fun updateOpeningDraft(w: P, isDoor: Boolean) {
-        val wall = PlanOps.hitWall(project, w, worldTol(OPENING_HIT_DP))
+        val wall = PlanOps.hitWall(project, w, worldTol(OPENING_HIT_DP))?.takeUnless { it.isCurved }
         val width = if (isDoor) settings.doorWidth else settings.windowWidth
         val offset = wall?.let { PlanOps.openingOffset(it, w, width) }
         draft = if (wall != null && offset != null) Draft.OpeningDraft(wall.id, offset, width, isDoor) else null
@@ -765,13 +1264,17 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         const val MIN_ZOOM = 0.05f
         const val MAX_ZOOM = 20f
-        private const val HIT_DP = 14f
-        private const val HANDLE_DP = 24f
+        private const val HIT_DP = 18f
+        private const val HANDLE_DP = 32f
         private const val SNAP_RADIUS_DP = 18f
         private const val OPENING_HIT_DP = 30f
         private const val WALL_SNAP_DP = 16f
         const val ROTATE_HANDLE_OFFSET_DP = 28f
+        /** The bend handle shows on walls at least this long on screen. */
+        private const val BEND_HANDLE_MIN_DP = 80f
         /** Furniture moves in 5 cm steps when grid snapping is on. */
         private const val ITEM_GRID = 5.0
+        /** Longest side of a stored background photo, in pixels. */
+        private const val BACKGROUND_MAX_PX = 2048
     }
 }

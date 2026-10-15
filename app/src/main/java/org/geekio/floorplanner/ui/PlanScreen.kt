@@ -27,6 +27,12 @@ import androidx.compose.material.icons.filled.HighlightAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Window
@@ -66,6 +72,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Dxf
+import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.Units
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +93,7 @@ fun PlanScreen(vm: PlanViewModel) {
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<ScreenDialog?>(null) }
     var addOpen by remember { mutableStateOf(false) }
+    var toolsOpen by remember { mutableStateOf(false) }
 
     vm.message?.let { msgRes ->
         val text = stringResource(msgRes)
@@ -110,8 +119,11 @@ fun PlanScreen(vm: PlanViewModel) {
     val saveJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
         write(it, vm.exportJson())
     }
+    val saveDxf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/dxf")) {
+        write(it, Dxf.export(vm.shown, vm.settings.units, Layer.DIMENSIONS !in vm.settings.hiddenLayers))
+    }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
-        write(it, ProjectIO.toSvg(vm.project, vm.settings.units))
+        write(it, ProjectIO.toSvg(vm.shown, vm.settings.units, Layer.DIMENSIONS !in vm.settings.hiddenLayers))
     }
 
     fun saveBytes(uri: Uri?, render: () -> ByteArray) {
@@ -127,7 +139,8 @@ fun PlanScreen(vm: PlanViewModel) {
         }
     }
 
-    val project = vm.project
+    // Exports leave out hidden layers.
+    val project = vm.shown
     val settings = vm.settings
     val savePng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
         saveBytes(it) { PlanExport.png(context, project, settings) }
@@ -161,6 +174,9 @@ fun PlanScreen(vm: PlanViewModel) {
                 vm.message = R.string.msg_no_share_app
             }
         }
+    }
+    val pickBackground = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { vm.setBackground(it) }
     }
     val openJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -205,6 +221,9 @@ fun PlanScreen(vm: PlanViewModel) {
                     }
                     IconButton(onClick = vm::redo, enabled = vm.canRedo) {
                         Icon(Icons.AutoMirrored.Filled.Redo, stringResource(R.string.redo))
+                    }
+                    IconButton(onClick = { toolsOpen = true }) {
+                        Icon(Icons.Filled.Handyman, stringResource(R.string.tools))
                     }
                     IconButton(onClick = vm::fitToScreen) {
                         Icon(Icons.Filled.FitScreen, stringResource(R.string.fit))
@@ -284,9 +303,83 @@ fun PlanScreen(vm: PlanViewModel) {
                     colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             }
+            if (vm.isTrueScale) {
+                AssistChip(
+                    onClick = vm::fitToScreen,
+                    label = { Text(stringResource(R.string.true_scale_on)) },
+                    leadingIcon = { Icon(Icons.Filled.Straighten, null, Modifier.size(AssistChipDefaults.IconSize)) },
+                    trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.close), Modifier.size(AssistChipDefaults.IconSize)) },
+                    modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
+                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                )
+            }
+            if (vm.tool == Tool.WALL) {
+                Row(
+                    Modifier.align(Alignment.TopStart).padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for ((mode, label, icon) in listOf(
+                        Triple(WallMode.LINE, R.string.wall_mode_line, Icons.Filled.Timeline),
+                        Triple(WallMode.ROOM, R.string.wall_mode_room, Icons.Filled.CropSquare),
+                    )) {
+                        FilterChip(
+                            selected = vm.wallMode == mode,
+                            onClick = { vm.chooseWallMode(mode) },
+                            label = { Text(stringResource(label)) },
+                            leadingIcon = { Icon(icon, null, Modifier.size(FilterChipDefaults.IconSize)) },
+                            colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                        )
+                    }
+                }
+            }
+            if (vm.tool == Tool.WALL && vm.chain != null && !vm.dragging) {
+                val lengthTitle = stringResource(R.string.length_m)
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.hint_chain), Modifier.weight(1f, fill = false))
+                        vm.chainWallId?.let { vm.project.wall(it) }?.let { wall ->
+                            val u = vm.settings.units
+                            val upm = vm.project.scale.unitsPerMeter
+                            TextButton(onClick = {
+                                dialog = ScreenDialog.Text(lengthTitle, Units.editValue(wall.length / upm, u)) { text ->
+                                    Units.parseLength(text, u)?.let(vm::setChainWallLength)
+                                }
+                            }) {
+                                Text(Units.length(wall.length / upm, u))
+                                Icon(Icons.Filled.Edit, null, Modifier.padding(start = 4.dp).size(16.dp))
+                            }
+                        }
+                        TextButton(onClick = vm::endChain) { Text(stringResource(R.string.done)) }
+                    }
+                }
+            }
+            if (!vm.dragging && !vm.multiSelect && vm.tool == Tool.SELECT) SelectionBar(vm)
+            CompareBanner(vm, Modifier.align(Alignment.BottomCenter).padding(12.dp))
+            if (vm.tool == Tool.CALIBRATE || vm.tool == Tool.BACKGROUND) {
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(if (vm.tool == Tool.CALIBRATE) R.string.hint_calibrate else R.string.hint_move_background),
+                            Modifier.weight(1f, fill = false),
+                        )
+                        TextButton(onClick = { vm.selectTool(Tool.SELECT) }) { Text(stringResource(R.string.done)) }
+                    }
+                }
+            }
+            if (!vm.multiSelect) {
+                FloorMenu(vm, { dialog = it }, Modifier.align(Alignment.TopEnd).padding(8.dp))
+            }
             if (vm.project.walls.isEmpty() && vm.tool == Tool.WALL) {
                 Surface(
-                    Modifier.align(Alignment.TopCenter).padding(12.dp),
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
                     shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
@@ -297,6 +390,34 @@ fun PlanScreen(vm: PlanViewModel) {
     }
 
     if (addOpen) AddSheet(vm) { addOpen = false }
+    if (toolsOpen) ToolsSheet(
+        onPick = { t ->
+            when (t) {
+                PlanTool.VIEW_3D -> dialog = ScreenDialog.View3D
+                PlanTool.SUNLIGHT -> vm.showSunlight()
+                PlanTool.CHECK -> vm.checkPlan()
+                PlanTool.MATERIALS -> dialog = ScreenDialog.Materials
+                PlanTool.BUYER -> dialog = ScreenDialog.Buyer
+                PlanTool.TRUE_SCALE -> vm.showTrueScale()
+                PlanTool.LAYERS -> dialog = ScreenDialog.Layers
+                PlanTool.VERSIONS -> dialog = ScreenDialog.Versions
+                PlanTool.BACKGROUND ->
+                    if (vm.project.background == null) pickBackground.launch("image/*") else dialog = ScreenDialog.Background
+            }
+        },
+        onDismiss = { toolsOpen = false },
+    )
+
+    vm.calibrateRequest?.let {
+        TextInputDialog(
+            title = stringResource(R.string.calibrate_title) + " (" + Units.lengthUnit(vm.settings.units) + ")",
+            message = stringResource(R.string.calibrate_message),
+            initial = "",
+            keyboardType = if (vm.settings.units == org.geekio.floorplanner.core.UnitSystem.METRIC) KeyboardType.Decimal else KeyboardType.Text,
+            onDismiss = { vm.calibrateRequest = null },
+            onConfirm = { text -> Units.parseLength(text, vm.settings.units)?.let { vm.calibrate(it) } ?: run { vm.calibrateRequest = null } },
+        )
+    }
 
     vm.labelRequest?.let {
         TextInputDialog(
@@ -315,6 +436,12 @@ fun PlanScreen(vm: PlanViewModel) {
             vm.createProject(p.copy(scale = vm.project.scale))
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
+        ScreenDialog.Buyer -> BuyerDialog(vm) { dialog = null }
+        ScreenDialog.Layers -> LayersDialog(vm) { dialog = null }
+        ScreenDialog.Versions -> VersionsDialog(vm) { dialog = null }
+        ScreenDialog.Background -> BackgroundDialog(vm, onPick = { pickBackground.launch("image/*") }) { dialog = null }
+        ScreenDialog.View3D -> ThreeDView(vm.project) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
             stringResource(R.string.share),
             listOf(
@@ -328,6 +455,7 @@ fun PlanScreen(vm: PlanViewModel) {
                 stringResource(R.string.format_png) to { savePng.launch(ProjectIO.fileName(project, "png")) },
                 stringResource(R.string.format_pdf) to { savePdf.launch(ProjectIO.fileName(project, "pdf")) },
                 stringResource(R.string.format_svg) to { saveSvg.launch(ProjectIO.fileName(project, "svg")) },
+                stringResource(R.string.format_dxf) to { saveDxf.launch(ProjectIO.fileName(project, "dxf")) },
             ),
         ) { dialog = null }
         is ScreenDialog.Number -> TextInputDialog(
@@ -350,6 +478,12 @@ sealed interface ScreenDialog {
     data object RenameProject : ScreenDialog
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
+    data object Materials : ScreenDialog
+    data object Buyer : ScreenDialog
+    data object Layers : ScreenDialog
+    data object Versions : ScreenDialog
+    data object Background : ScreenDialog
+    data object View3D : ScreenDialog
     data object Share : ScreenDialog
     data object Export : ScreenDialog
     class Number(val title: String, val initial: String, val onValue: (Double) -> Unit) : ScreenDialog

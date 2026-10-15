@@ -18,6 +18,24 @@ data class Project(
     val items: List<Item> = emptyList(),
     val dimensions: List<Dimension> = emptyList(),
     val labels: List<Label> = emptyList(),
+    /**
+     * Every floor of a multi-storey plan, empty for a single floor. The floor at [floorIndex] is only a
+     * placeholder (id and name): its content is the top-level walls, rooms and so on above, so the
+     * editing code and older readers of the format only ever see one floor.
+     */
+    val floors: List<Floor> = emptyList(),
+    val floorIndex: Int = 0,
+    /** Ceiling height in world units, for paint estimates and the 3D view. */
+    val wallHeight: Double = 270.0,
+    val costs: Costs = Costs(),
+    /** Placement of a photo of a paper plan under the drawing; the image itself is kept next to the project file. */
+    val background: Background? = null,
+    /** Direction of north on the plan, in degrees clockwise from the top of the screen. */
+    val north: Double = 0.0,
+    /** Latitude of the home in degrees (positive north), for the sunlight view. */
+    val latitude: Double = 35.7,
+    /** Asking price of the home, for the home buyer summary; null when not set. */
+    val price: Double? = null,
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
@@ -41,8 +59,16 @@ data class Wall(
     val id: String,
     val points: List<List<Double>>,
     val thickness: Double = 20.0,
+    /** Height of a low wall (counter, railing) in world units; null for a full-height wall. */
+    val height: Double? = null,
+    /**
+     * Curve of the wall: how far the middle of the arc sits from the straight line a→b, measured along its
+     * left-hand normal (perp of a→b). 0 for a straight wall.
+     */
+    val bulge: Double = 0.0,
 ) {
     val a: P get() = P.of(points[0])
+    val isCurved: Boolean get() = kotlin.math.abs(bulge) >= 0.5
     val b: P get() = P.of(points[1])
     val length: Double get() = a.dist(b)
 
@@ -72,7 +98,14 @@ data class Door(
     val flipped: Boolean = false,
     /** 1 or -1: which side of the wall the door swings to. */
     val side: Int = 1,
-) : Opening
+    /** null for a single swing door, or one of [Door.DOUBLE], [Door.SLIDING]. */
+    val style: String? = null,
+) : Opening {
+    companion object {
+        const val DOUBLE = "double"
+        const val SLIDING = "sliding"
+    }
+}
 
 @Serializable
 data class PlanWindow(
@@ -138,3 +171,40 @@ data class Label(
     val anchor: P get() = P(x, y)
     val tip: P? get() = arrow?.takeIf { it.size >= 2 }?.let { P.of(it) }
 }
+
+/** One storey of a building; see [Project.floors]. */
+@Serializable
+data class Floor(
+    val id: String,
+    val name: String,
+    val walls: List<Wall> = emptyList(),
+    val doors: List<Door> = emptyList(),
+    val windows: List<PlanWindow> = emptyList(),
+    val rooms: List<Room> = emptyList(),
+    val items: List<Item> = emptyList(),
+    val dimensions: List<Dimension> = emptyList(),
+    val labels: List<Label> = emptyList(),
+)
+
+/** Unit prices for the materials estimate, per m², litre and metre; 0 means not set. */
+@Serializable
+data class Costs(
+    val floorPerM2: Double = 0.0,
+    val paintPerLiter: Double = 0.0,
+    val skirtingPerM: Double = 0.0,
+    /** Extra floor covering for cuts, in percent. */
+    val wastePercent: Double = 10.0,
+)
+
+/** Where the background photo sits: its top-left corner at ([x], [y]), [scale] world units per image pixel. */
+@Serializable
+data class Background(
+    val x: Double = 0.0,
+    val y: Double = 0.0,
+    val scale: Double = 1.0,
+    val opacity: Double = 0.5,
+)
+
+/** A named snapshot of a whole project, such as "Before renovation". */
+@Serializable
+data class SavedVersion(val name: String, val time: Long, val project: Project)

@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.ProjectEntry
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.UnitSystem
@@ -108,6 +110,12 @@ fun HomeScreen(vm: PlanViewModel) {
                                 menuOpen = false
                                 openJson.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sample_plan)) }, onClick = {
+                                menuOpen = false; vm.openSample()
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.compare_homes)) }, onClick = {
+                                menuOpen = false; dialog = HomeDialog.Compare
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = HomeDialog.Settings
                             })
@@ -146,6 +154,9 @@ fun HomeScreen(vm: PlanViewModel) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                OutlinedButton(onClick = vm::openSample, modifier = Modifier.padding(top = 20.dp)) {
+                    Text(stringResource(R.string.open_sample_plan))
+                }
             }
         } else {
             LazyVerticalGrid(
@@ -175,6 +186,7 @@ fun HomeScreen(vm: PlanViewModel) {
             vm.createProject(p)
         }
         HomeDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        HomeDialog.Compare -> CompareHomesDialog(vm.projects, vm.settings.units, onOpen = vm::openProject) { dialog = null }
         is HomeDialog.Rename -> TextInputDialog(
             title = stringResource(R.string.project_name), initial = d.entry.project.projectName,
             onDismiss = { dialog = null }, onConfirm = { vm.renameProjectEntry(d.entry.id, it); dialog = null },
@@ -201,6 +213,7 @@ fun HomeScreen(vm: PlanViewModel) {
 private sealed interface HomeDialog {
     data object New : HomeDialog
     data object Settings : HomeDialog
+    data object Compare : HomeDialog
     class Rename(val entry: ProjectEntry) : HomeDialog
     class Duplicate(val entry: ProjectEntry) : HomeDialog
     class Delete(val entry: ProjectEntry) : HomeDialog
@@ -218,7 +231,7 @@ private fun ProjectCard(entry: ProjectEntry, units: UnitSystem, onOpen: () -> Un
             Column(Modifier.weight(1f).padding(start = 12.dp, bottom = 10.dp)) {
                 Text(entry.project.projectName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    Units.area(entry.project.totalAreaM2, units) + " · " +
+                    Units.area(Floors.totalAreaM2(entry.project), units) + " · " +
                         DateUtils.getRelativeTimeSpanString(entry.modified).toString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = cs.onSurfaceVariant,
