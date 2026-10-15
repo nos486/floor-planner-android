@@ -150,7 +150,8 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                     if (d.isDoor) drawDoor(vm, Door("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
                     else drawWindow(vm, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
                 }
-                null -> Unit
+                // Drawn on top in screen space below.
+                is Draft.MeasureDraft, null -> Unit
             }
         }
 
