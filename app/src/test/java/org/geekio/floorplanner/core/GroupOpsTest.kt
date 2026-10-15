@@ -81,4 +81,15 @@ class GroupOpsTest {
         val p = GroupOps.delete(plan, all)
         assertTrue(p.walls.isEmpty() && p.doors.isEmpty() && p.items.isEmpty() && p.rooms.isEmpty())
     }
+
+    @Test
+    fun lockedItemStaysWhenTheGroupMoves() {
+        val locked = PlanOps.updateItem(plan, bed.id) { it.copy(locked = true) }
+        val moved = GroupOps.translate(locked, all, P(50.0, 0.0))
+        assertEquals(100.0, moved.item(bed.id)!!.x, 1e-9)
+        assertEquals(50.0, moved.walls.first().a.x, 1e-9)
+        // A copy of a locked item can be moved.
+        val (copied, _) = PlanOps.duplicateItem(locked, bed.id)!!
+        assertTrue(!copied.items.last().locked)
+    }
 }

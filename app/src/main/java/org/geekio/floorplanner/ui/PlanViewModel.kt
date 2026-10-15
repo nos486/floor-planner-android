@@ -832,12 +832,29 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         selection = Selection(Kind.ITEM, item.id)
     }
 
-    fun rotateItem(id: String, degrees: Double) = commit(PlanOps.rotateItem(project, id, degrees))
+    /** True (and a hint shown) when the item is locked and must not change place, turn or size. */
+    private fun lockedItem(id: String): Boolean {
+        if (project.item(id)?.locked != true) return false
+        message = R.string.hint_item_locked
+        return true
+    }
 
-    fun setItemRotation(id: String, degrees: Double) =
+    fun rotateItem(id: String, degrees: Double) {
+        if (lockedItem(id)) return
+        commit(PlanOps.rotateItem(project, id, degrees))
+    }
+
+    fun setItemRotation(id: String, degrees: Double) {
+        if (lockedItem(id)) return
         commit(PlanOps.updateItem(project, id) { it.copy(rotation = Furniture.normalizeAngle(degrees)) })
+    }
 
-    fun setItemSize(id: String, width: Double, depth: Double) = commit(PlanOps.setItemSize(project, id, width, depth))
+    fun setItemSize(id: String, width: Double, depth: Double) {
+        if (lockedItem(id)) return
+        commit(PlanOps.setItemSize(project, id, width, depth))
+    }
+
+    fun toggleItemLock(id: String) = commit(PlanOps.updateItem(project, id) { it.copy(locked = !it.locked) })
 
     fun duplicateItem(id: String) {
         val (p, copy) = PlanOps.duplicateItem(project, id) ?: return
@@ -847,7 +864,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Screen position of the rotation handle of a selected item. */
     fun itemRotateHandle(id: String): Offset? {
-        val item = project.item(id) ?: return null
+        val item = project.item(id)?.takeIf { !it.locked } ?: return null
         val front = toScreen(Furniture.toWorld(item, P(0.0, item.depth / 2)))
         val center = toScreen(P(item.x, item.y))
         val dir = front - center
@@ -1002,7 +1019,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 draft = Draft.ArrowDraft(w, w)
                 DragOp.DrawArrow(w)
             }
-            Tool.SELECT -> if (multiSelect) groupDragStart(w) else selectDragStart(screen, w)
+            Tool.SELECT -> if (multiSelect) groupDragStart(w) else selectDragStart(screen, w, held = false)
             Tool.CALIBRATE -> {
                 draft = Draft.MeasureDraft(w, w, SnapType.NONE)
                 DragOp.DrawCalibration(w)
@@ -1018,7 +1035,38 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         return DragOp.BoxSelect(w)
     }
 
-    private fun selectDragStart(screen: Offset, w: P): DragOp {
+    /** Whether holding a finger still on the plan picks up the thing under it (see [onHold]). */
+    val holdSelects: Boolean get() = tool == Tool.SELECT && !multiSelect
+
+    /**
+     * A finger held still at [screen]: selects what is under it and starts moving it with the same finger.
+     * Returns false when there is nothing there to pick up.
+     */
+    fun onHold(screen: Offset): Boolean {
+        val w = toWorld(screen)
+        val op = selectDragStart(screen, w, held = true)
+        if (op is DragOp.Pan) return false
+        dragging = true
+        lastSnap = SnapType.NONE
+        dragOp = op
+        snapTick++
+        return true
+    }
+
+    /**
+     * Drag in the select tool. Only the selected thing moves straight away (or, when [held], whatever the finger
+     * was held on); dragging over anything else pans, so a swipe across the plan never shifts furniture by accident.
+     */
+    private fun selectDragStart(screen: Offset, w: P, held: Boolean): DragOp {
+        var missed = false
+        fun grab(hit: Selection): Boolean {
+            if (!held && hit != selection) {
+                missed = true
+                return false
+            }
+            selection = hit
+            return true
+        }
         val tol = worldTol(HIT_DP)
         // Endpoint handles of the selected wall, rotation handle of the selected item.
         val sel = selection
@@ -1042,8 +1090,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-        PlanOps.hitOpening(project, w, tol)?.let { hit ->
-            selection = hit
+        PlanOps.hitOpening(project, w, tol)?.takeIf { grab(it) }?.let { hit ->
             val o = if (hit.kind == Kind.DOOR) project.door(hit.id) else project.window(hit.id)
             val wall = o?.let { project.wall(it.wallId) }
             if (o != null && wall != null) {
@@ -1051,24 +1098,30 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
         }
-        PlanOps.hitLabel(shown, w, tol)?.let { l ->
-            selection = Selection(Kind.LABEL, l.id)
+        PlanOps.hitLabel(shown, w, tol)?.takeIf { grab(Selection(Kind.LABEL, it.id)) }?.let { l ->
             return DragOp.MoveLabel(project, l.id, w)
         }
-        Dimensions.hit(shown, w, tol)?.let { d ->
-            selection = Selection(Kind.DIMENSION, d.id)
+        Dimensions.hit(shown, w, tol)?.takeIf { grab(Selection(Kind.DIMENSION, it.id)) }?.let { d ->
             return DragOp.MoveDimension(project, d.id)
         }
-        PlanOps.hitItem(shown, w)?.let { item ->
-            selection = Selection(Kind.ITEM, item.id)
+        PlanOps.hitItem(shown, w)?.takeIf { grab(Selection(Kind.ITEM, it.id)) }?.let { item ->
+            if (item.locked) {
+                message = R.string.hint_item_locked
+                return DragOp.Pan(screen)
+            }
             return DragOp.MoveItem(project, item.id, P(item.x, item.y) - w)
         }
-        PlanOps.hitWall(project, w, tol)?.let { wall ->
-            selection = Selection(Kind.WALL, wall.id)
+        PlanOps.hitWall(project, w, tol)?.takeIf { grab(Selection(Kind.WALL, it.id)) }?.let { wall ->
             return DragOp.MoveWall(project, wall.id, w)
+        }
+        if (missed && !holdHintShown) {
+            holdHintShown = true
+            message = R.string.hint_hold_to_move
         }
         return DragOp.Pan(screen)
     }
+
+    private var holdHintShown = false
 
     fun onDrag(screen: Offset) {
         val w = toWorld(screen)

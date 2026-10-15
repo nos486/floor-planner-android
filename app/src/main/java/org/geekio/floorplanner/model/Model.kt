@@ -141,6 +141,8 @@ data class Item(
     val width: Double,
     val depth: Double,
     val rotation: Double = 0.0,
+    /** A locked item stays where it is: it can't be dragged, turned or resized until it is unlocked. */
+    val locked: Boolean = false,
 )
 
 /** A measurement line between two points, drawn [offset] units to the side (along the normal of a→b). */

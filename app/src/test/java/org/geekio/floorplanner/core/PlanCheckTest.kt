@@ -71,4 +71,19 @@ class PlanCheckTest {
         )
         assertTrue(IssueKind.WINDOW_BLOCKED in kinds(p))
     }
+
+    @Test
+    fun hungCabinetsAndRugsDoNotClash() {
+        val p = Project(
+            walls = box,
+            items = listOf(
+                // A wall cabinet over a base cabinet, and a sofa standing on a rug.
+                Item("b", "base_cabinet", 100.0, 40.0, 60.0, 60.0),
+                Item("u", "wall_cabinet", 100.0, 27.5, 60.0, 35.0),
+                Item("r", "rug", 250.0, 180.0, 200.0, 160.0),
+                Item("s", "sofa2", 250.0, 160.0, 160.0, 85.0),
+            ),
+        )
+        assertTrue(IssueKind.ITEMS_OVERLAP !in kinds(p))
+    }
 }

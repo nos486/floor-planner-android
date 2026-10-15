@@ -185,7 +185,7 @@ object PlanOps {
     fun duplicateItem(p: Project, id: String): Pair<Project, Item>? {
         val item = p.item(id) ?: return null
         val shift = Furniture.toWorld(item.copy(x = 0.0, y = 0.0), P(item.width + 20, 0.0))
-        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1))
+        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1), locked = false)
         return p.copy(items = p.items + copy) to copy
     }
 
@@ -326,7 +326,7 @@ object PlanOps {
     fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
         // Small electrical and plumbing symbols sit on top of furniture and are easier to hit.
         p.items.lastOrNull { Furniture.isFixture(it) && Furniture.contains(it, point, maxOf(tolerance, FIXTURE_REACH)) }
-            ?: p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+            ?: p.items.sortedBy { Furniture.layer(it) }.lastOrNull { Furniture.contains(it, point, tolerance) }
 
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }
