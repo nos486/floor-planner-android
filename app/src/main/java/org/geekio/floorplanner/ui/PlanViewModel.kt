@@ -638,7 +638,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         lastSnap = type
     }
 
-    fun setWallMode(mode: WallMode) {
+    fun chooseWallMode(mode: WallMode) {
         wallMode = mode
         endChain()
     }

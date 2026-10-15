@@ -324,7 +324,7 @@ fun PlanScreen(vm: PlanViewModel) {
                     )) {
                         FilterChip(
                             selected = vm.wallMode == mode,
-                            onClick = { vm.setWallMode(mode) },
+                            onClick = { vm.chooseWallMode(mode) },
                             label = { Text(stringResource(label)) },
                             leadingIcon = { Icon(icon, null, Modifier.size(FilterChipDefaults.IconSize)) },
                             colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
