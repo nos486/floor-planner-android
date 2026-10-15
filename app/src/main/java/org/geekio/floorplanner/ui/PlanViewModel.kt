@@ -29,6 +29,7 @@ import org.geekio.floorplanner.core.generateId
 import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
 import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.model.Costs
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
 import kotlinx.coroutines.Dispatchers
@@ -293,6 +294,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun setGridCm(cm: Double) {
         commit(project.copy(scale = project.scale.copy(gridCm = cm.coerceIn(5.0, 200.0))))
     }
+
+    fun setEstimateInputs(height: Double, costs: Costs) = commit(project.copy(wallHeight = height, costs = costs))
 
     fun updateSettings(s: Settings) {
         settings = s

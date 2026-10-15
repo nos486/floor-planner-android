@@ -149,4 +149,15 @@
     <string name="add_floor">Add floor</string>
     <string name="rename_floor">Rename floor</string>
     <string name="delete_floor">Delete floor</string>
+    <string name="materials">Materials &amp; cost</string>
+    <string name="ceiling_height">Ceiling height</string>
+    <string name="waste">Extra for cuts</string>
+    <string name="floor_covering">Floor covering</string>
+    <string name="wall_paint">Wall paint (2 coats)</string>
+    <string name="skirting">Skirting</string>
+    <string name="unit_price">Price per %1$s</string>
+    <string name="total_cost">Total cost</string>
+    <string name="by_room">By room</string>
+    <string name="room_estimate">Floor %1$s · walls %2$s</string>
+    <string name="estimate_note">Worked out from the room shapes and ceiling height, with doors and windows taken off. Buy a little extra.</string>
 </resources>

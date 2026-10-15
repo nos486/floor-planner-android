@@ -232,6 +232,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Export
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.materials)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Materials
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
                             })
@@ -318,6 +321,7 @@ fun PlanScreen(vm: PlanViewModel) {
             vm.createProject(p.copy(scale = vm.project.scale))
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
             stringResource(R.string.share),
             listOf(
@@ -353,6 +357,7 @@ sealed interface ScreenDialog {
     data object RenameProject : ScreenDialog
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
+    data object Materials : ScreenDialog
     data object Share : ScreenDialog
     data object Export : ScreenDialog
     class Number(val title: String, val initial: String, val onValue: (Double) -> Unit) : ScreenDialog

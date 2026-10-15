@@ -149,4 +149,15 @@
     <string name="add_floor">افزودن طبقه</string>
     <string name="rename_floor">تغییر نام طبقه</string>
     <string name="delete_floor">حذف طبقه</string>
+    <string name="materials">مصالح و هزینه</string>
+    <string name="ceiling_height">ارتفاع سقف</string>
+    <string name="waste">اضافه برای برش</string>
+    <string name="floor_covering">کف‌پوش</string>
+    <string name="wall_paint">رنگ دیوار (دو دست)</string>
+    <string name="skirting">قرنیز</string>
+    <string name="unit_price">قیمت هر %1$s</string>
+    <string name="total_cost">جمع هزینه</string>
+    <string name="by_room">به تفکیک اتاق</string>
+    <string name="room_estimate">کف %1$s · دیوار %2$s</string>
+    <string name="estimate_note">از شکل اتاق‌ها و ارتفاع سقف حساب شده و در و پنجره کم شده است. کمی بیشتر بخرید.</string>
 </resources>

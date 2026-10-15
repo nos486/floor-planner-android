@@ -25,6 +25,9 @@ data class Project(
      */
     val floors: List<Floor> = emptyList(),
     val floorIndex: Int = 0,
+    /** Ceiling height in world units, for paint estimates and the 3D view. */
+    val wallHeight: Double = 270.0,
+    val costs: Costs = Costs(),
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
@@ -158,4 +161,14 @@ data class Floor(
     val items: List<Item> = emptyList(),
     val dimensions: List<Dimension> = emptyList(),
     val labels: List<Label> = emptyList(),
+)
+
+/** Unit prices for the materials estimate, per m², litre and metre; 0 means not set. */
+@Serializable
+data class Costs(
+    val floorPerM2: Double = 0.0,
+    val paintPerLiter: Double = 0.0,
+    val skirtingPerM: Double = 0.0,
+    /** Extra floor covering for cuts, in percent. */
+    val wastePercent: Double = 10.0,
 )
