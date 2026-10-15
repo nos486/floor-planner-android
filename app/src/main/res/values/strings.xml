@@ -251,4 +251,12 @@
     <string name="compare_homes_hint">Set a price in each plan (menu, Home buyer) to compare prices per m².</string>
     <string name="true_scale">Actual size (1:1)</string>
     <string name="true_scale_on">Actual size</string>
+    <string name="sample_plan">Sample plan</string>
+    <string name="open_sample_plan">Open a sample plan</string>
+    <string name="sample_name">Sample home</string>
+    <string name="ground_floor">Ground floor</string>
+    <string name="first_floor">First floor</string>
+    <string name="entrance">Entrance</string>
+    <string name="rk_study">Study</string>
+    <string name="rk_family">Family room</string>
 </resources>

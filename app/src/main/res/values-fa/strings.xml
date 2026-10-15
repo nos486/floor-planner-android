@@ -251,4 +251,12 @@
     <string name="compare_homes_hint">برای مقایسه قیمت هر متر، در هر نقشه از منو «خریدار خانه» قیمت را وارد کن.</string>
     <string name="true_scale">اندازه واقعی (۱:۱)</string>
     <string name="true_scale_on">اندازه واقعی</string>
+    <string name="sample_plan">نقشه نمونه</string>
+    <string name="open_sample_plan">باز کردن نقشه نمونه</string>
+    <string name="sample_name">خانه نمونه</string>
+    <string name="ground_floor">همکف</string>
+    <string name="first_floor">طبقه اول</string>
+    <string name="entrance">ورودی</string>
+    <string name="rk_study">اتاق کار</string>
+    <string name="rk_family">نشیمن خانوادگی</string>
 </resources>

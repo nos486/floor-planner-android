@@ -23,6 +23,8 @@ import org.geekio.floorplanner.core.Issue
 import org.geekio.floorplanner.core.LightPatch
 import org.geekio.floorplanner.core.RoomSun
 import org.geekio.floorplanner.core.Sun
+import org.geekio.floorplanner.core.Samples
+import org.geekio.floorplanner.core.SampleText
 import org.geekio.floorplanner.core.SunPosition
 import org.geekio.floorplanner.core.PlanCheck
 import org.geekio.floorplanner.core.PlanDiff
@@ -528,6 +530,22 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Imports a JSON project file as a new project; false when it isn't a floor plan. */
+    /** Creates a copy of the furnished two-storey sample home and opens it. */
+    fun openSample() {
+        val app = getApplication<Application>()
+        val p = Samples.home({ app.getString(roomKeyName(it)) }) { t ->
+            app.getString(
+                when (t) {
+                    SampleText.NAME -> R.string.sample_name
+                    SampleText.GROUND_FLOOR -> R.string.ground_floor
+                    SampleText.FIRST_FLOOR -> R.string.first_floor
+                    SampleText.ENTRANCE -> R.string.entrance
+                },
+            )
+        }
+        createProject(p)
+    }
+
     fun importJson(text: String?): Boolean {
         val loaded = text?.let { ProjectIO.fromJson(it) } ?: return false
         createProject(loaded)

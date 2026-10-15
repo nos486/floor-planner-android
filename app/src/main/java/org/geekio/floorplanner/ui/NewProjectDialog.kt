@@ -119,4 +119,6 @@ fun roomKeyName(key: RoomKey): Int = when (key) {
     RoomKey.BATHROOM -> R.string.rk_bathroom
     RoomKey.WC -> R.string.rk_wc
     RoomKey.STORAGE -> R.string.rk_storage
+    RoomKey.STUDY -> R.string.rk_study
+    RoomKey.FAMILY -> R.string.rk_family
 }

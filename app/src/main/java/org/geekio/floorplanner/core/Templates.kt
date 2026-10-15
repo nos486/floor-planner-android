@@ -5,7 +5,7 @@ import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
 
-enum class RoomKey { LIVING, KITCHEN, BEDROOM, MASTER_BEDROOM, BATHROOM, WC, STORAGE }
+enum class RoomKey { LIVING, KITCHEN, BEDROOM, MASTER_BEDROOM, BATHROOM, WC, STORAGE, STUDY, FAMILY }
 
 /** A ready-made plan to start from. [area] is its area in m² (to the wall centre lines), for display. */
 data class Template(val key: String, val area: Int, val rooms: Int)

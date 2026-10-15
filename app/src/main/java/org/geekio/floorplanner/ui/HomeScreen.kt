@@ -30,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -109,6 +110,9 @@ fun HomeScreen(vm: PlanViewModel) {
                                 menuOpen = false
                                 openJson.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sample_plan)) }, onClick = {
+                                menuOpen = false; vm.openSample()
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.compare_homes)) }, onClick = {
                                 menuOpen = false; dialog = HomeDialog.Compare
                             })
@@ -150,6 +154,9 @@ fun HomeScreen(vm: PlanViewModel) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                OutlinedButton(onClick = vm::openSample, modifier = Modifier.padding(top = 20.dp)) {
+                    Text(stringResource(R.string.open_sample_plan))
+                }
             }
         } else {
             LazyVerticalGrid(
