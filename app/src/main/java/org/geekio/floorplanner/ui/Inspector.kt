@@ -113,6 +113,20 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                 }
             }
         }
+        Kind.DIMENSION -> {
+            val d = p.dimension(sel.id) ?: return
+            title = stringResource(R.string.measurement)
+            body = {
+                LabeledRow(stringResource(R.string.length)) {
+                    Text(fmt(d.length / upm) + " m", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+                }
+                Text(
+                    stringResource(R.string.hint_move_dimension),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         Kind.ROOM -> {
             val room = p.room(sel.id) ?: return
             title = stringResource(R.string.room)
@@ -174,6 +188,7 @@ fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 SwitchRow(stringResource(R.string.show_grid), s.showGrid) { vm.updateSettings(s.copy(showGrid = it)) }
+                SwitchRow(stringResource(R.string.show_overall), s.showOverall) { vm.updateSettings(s.copy(showOverall = it)) }
                 SwitchRow(stringResource(R.string.snap_grid), s.snap.grid) { vm.updateSettings(s.copy(snap = s.snap.copy(grid = it))) }
                 SwitchRow(stringResource(R.string.snap_endpoints), s.snap.endpoints) { vm.updateSettings(s.copy(snap = s.snap.copy(endpoints = it))) }
                 SwitchRow(stringResource(R.string.snap_angles), s.snap.angles) { vm.updateSettings(s.copy(snap = s.snap.copy(angles = it))) }

@@ -25,6 +25,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.geekio.floorplanner.core.DimensionGeometry
+import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
@@ -154,6 +156,24 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
 
         // ----- Screen-space overlays -----
         drawDimensions(vm, textMeasurer, colors)
+        if (vm.settings.showOverall) {
+            for (g in Dimensions.overall(project, (34.dp.toPx() / zoom).toDouble())) {
+                drawDimensionLine(vm, g, textMeasurer, colors.dim, colors)
+            }
+        }
+        for (d in project.dimensions) {
+            val g = Dimensions.geometry(d) ?: continue
+            val isSel = sel?.kind == Kind.DIMENSION && sel.id == d.id
+            drawDimensionLine(vm, g, textMeasurer, if (isSel) colors.selected else colors.label, colors)
+        }
+        (vm.draft as? Draft.MeasureDraft)?.let { d ->
+            Dimensions.geometry(d.a, d.b, 0.0)?.let { drawDimensionLine(vm, it, textMeasurer, colors.selected, colors) }
+            drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
+            if (d.snap == SnapType.ENDPOINT) {
+                drawCircle(colors.selected, 12.dp.toPx(), vm.toScreen(d.b), style = Stroke(2.dp.toPx()))
+            }
+            drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.b))
+        }
         drawRoomLabels(vm, textMeasurer, colors)
 
         (vm.draft as? Draft.WallDraft)?.let { d ->
@@ -279,6 +299,31 @@ private fun DrawScope.drawDimensions(vm: PlanViewModel, tm: TextMeasurer, c: Pla
         val layout = tm.measure(String.format(Locale.getDefault(), "%.2f", wall.length / upm), style)
         drawText(layout, topLeft = screenOff - Offset(layout.size.width / 2f, layout.size.height / 2f))
     }
+}
+
+/** A dimension line with extension lines, slash ticks and its length, drawn in screen space. */
+private fun DrawScope.drawDimensionLine(vm: PlanViewModel, g: DimensionGeometry, tm: TextMeasurer, color: Color, c: PlanColors) {
+    val start = vm.toScreen(g.start)
+    val end = vm.toScreen(g.end)
+    val len = (end - start).getDistance()
+    if (len < 8.dp.toPx()) return
+    val dir = (end - start) / len
+    val n = Offset(g.normal.x.toFloat(), g.normal.y.toFloat())
+    val over = n * (6.dp.toPx() * g.side.toFloat())
+    val w = 1.dp.toPx()
+    drawLine(color.copy(alpha = 0.6f), vm.toScreen(g.fromA), start + over, w)
+    drawLine(color.copy(alpha = 0.6f), vm.toScreen(g.fromB), end + over, w)
+    drawLine(color, start, end, 1.3f * w)
+    val tick = (dir + n) * (5.dp.toPx())
+    drawLine(color, start - tick, start + tick, 1.6f * w)
+    drawLine(color, end - tick, end + tick, 1.6f * w)
+    val text = String.format(Locale.getDefault(), "%.2f", g.start.dist(g.end) / vm.project.scale.unitsPerMeter)
+    val layout = tm.measure(text, TextStyle(fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium))
+    val side = if (g.side == 0.0) -1f else g.side.toFloat()
+    val center = (start + end) / 2f + n * (side * 10.dp.toPx())
+    val tl = center - Offset(layout.size.width / 2f, layout.size.height / 2f)
+    drawRoundRect(c.labelBg, tl - Offset(3.dp.toPx(), 1.dp.toPx()), Size(layout.size.width + 6.dp.toPx(), layout.size.height + 2.dp.toPx()), CornerRadius(4.dp.toPx()))
+    drawText(layout, topLeft = tl)
 }
 
 private fun DrawScope.drawRoomLabels(vm: PlanViewModel, tm: TextMeasurer, c: PlanColors) {

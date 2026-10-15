@@ -16,12 +16,14 @@ data class Project(
     val windows: List<PlanWindow> = emptyList(),
     val rooms: List<Room> = emptyList(),
     val items: List<Item> = emptyList(),
+    val dimensions: List<Dimension> = emptyList(),
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
     fun window(id: String) = windows.firstOrNull { it.id == id }
     fun room(id: String) = rooms.firstOrNull { it.id == id }
     fun item(id: String) = items.firstOrNull { it.id == id }
+    fun dimension(id: String) = dimensions.firstOrNull { it.id == id }
 
     val totalAreaM2: Double get() = rooms.sumOf { it.areaM2 }
 }
@@ -101,3 +103,15 @@ data class Item(
     val depth: Double,
     val rotation: Double = 0.0,
 )
+
+/** A measurement line between two points, drawn [offset] units to the side (along the normal of a→b). */
+@Serializable
+data class Dimension(
+    val id: String,
+    val points: List<List<Double>>,
+    val offset: Double = 0.0,
+) {
+    val a: P get() = P.of(points[0])
+    val b: P get() = P.of(points[1])
+    val length: Double get() = a.dist(b)
+}

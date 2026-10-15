@@ -5,13 +5,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -22,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +50,17 @@ fun AddSheet(vm: PlanViewModel, onDismiss: () -> Unit) {
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "tools") {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ToolChip(Icons.Filled.Straighten, R.string.tool_measure) {
+                        vm.selectTool(Tool.MEASURE)
+                        onDismiss()
+                    }
+                }
+            }
             for (category in FurnitureCategory.entries) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "h_$category") {
                     Text(
@@ -63,6 +81,15 @@ fun AddSheet(vm: PlanViewModel, onDismiss: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun ToolChip(icon: ImageVector, label: Int, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(stringResource(label)) },
+        leadingIcon = { Icon(icon, null, Modifier.size(AssistChipDefaults.IconSize)) },
+    )
 }
 
 @Composable

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material3.AlertDialog
@@ -180,11 +181,12 @@ fun PlanScreen(vm: PlanViewModel) {
                     ToolItem(vm, Tool.WALL, Icons.Filled.Timeline, R.string.tool_wall)
                     ToolItem(vm, Tool.DOOR, Icons.Filled.DoorFront, R.string.tool_door)
                     ToolItem(vm, Tool.WINDOW, Icons.Filled.Window, R.string.tool_window)
+                    val extra = vm.tool == Tool.MEASURE
                     NavigationBarItem(
-                        selected = false,
+                        selected = extra,
                         onClick = { addOpen = true },
-                        icon = { Icon(Icons.Filled.Chair, null) },
-                        label = { Text(stringResource(R.string.tool_add)) },
+                        icon = { Icon(if (vm.tool == Tool.MEASURE) Icons.Filled.Straighten else Icons.Filled.Chair, null) },
+                        label = { Text(stringResource(if (vm.tool == Tool.MEASURE) R.string.tool_measure else R.string.tool_add)) },
                     )
                 }
             }

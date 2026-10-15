@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
@@ -29,16 +30,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-enum class Tool { SELECT, WALL, DOOR, WINDOW }
+enum class Tool { SELECT, WALL, DOOR, WINDOW, MEASURE }
 
 /** Something being drawn that is not part of the project yet. */
 sealed interface Draft {
     data class WallDraft(val a: P, val b: P, val snap: SnapType) : Draft
     data class OpeningDraft(val wallId: String, val offset: Double, val width: Double, val isDoor: Boolean) : Draft
+    data class MeasureDraft(val a: P, val b: P, val snap: SnapType) : Draft
 }
 
 data class Settings(
     val showGrid: Boolean = true,
+    val showOverall: Boolean = true,
     val snap: SnapOptions = SnapOptions(),
     val wallThickness: Double = 20.0,
     val doorWidth: Double = 90.0,
@@ -113,6 +116,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 Kind.WINDOW -> project.window(sel.id) != null
                 Kind.ROOM -> project.room(sel.id) != null
                 Kind.ITEM -> project.item(sel.id) != null
+                Kind.DIMENSION -> project.dimension(sel.id) != null
             }
             if (!exists) selection = null
         }
@@ -314,6 +318,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class MoveVertex(val origin: Project, val from: P) : DragOp
         data class MoveWall(val origin: Project, val wallId: String, val startWorld: P) : DragOp
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
+        data class DrawMeasure(val start: P) : DragOp
+        data class MoveDimension(val origin: Project, val id: String) : DragOp
         data class MoveItem(val origin: Project, val id: String, val grab: P) : DragOp
         data class RotateItem(val origin: Project, val id: String) : DragOp
     }
@@ -330,6 +336,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         when (tool) {
             Tool.SELECT -> selection = PlanOps.hit(project, w, worldTol(HIT_DP))
             Tool.WALL -> message = R.string.hint_wall
+            Tool.MEASURE -> message = R.string.hint_measure
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
                 placeOpeningDraft()
@@ -348,6 +355,11 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
                 DragOp.PlaceOpening(tool == Tool.DOOR)
+            }
+            Tool.MEASURE -> {
+                val s = snap(w)
+                draft = Draft.MeasureDraft(s.point, s.point, s.type)
+                DragOp.DrawMeasure(s.point)
             }
             Tool.SELECT -> selectDragStart(screen, w)
         }
@@ -379,6 +391,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val along = (w - wall.a).dot((wall.b - wall.a).normalized())
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
+        }
+        Dimensions.hit(project, w, tol)?.let { d ->
+            selection = Selection(Kind.DIMENSION, d.id)
+            return DragOp.MoveDimension(project, d.id)
         }
         PlanOps.hitItem(project, w)?.let { item ->
             selection = Selection(Kind.ITEM, item.id)
@@ -423,6 +439,14 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 project = if (op.kind == Kind.DOOR) PlanOps.updateDoor(op.origin, op.id) { it.copy(offset = rounded) }
                 else PlanOps.updateWindow(op.origin, op.id) { it.copy(offset = rounded) }
             }
+            is DragOp.DrawMeasure -> {
+                val s = snap(w, start = op.start, exclude = op.start)
+                draft = Draft.MeasureDraft(op.start, s.point, s.type)
+            }
+            is DragOp.MoveDimension -> {
+                val d = op.origin.dimension(op.id) ?: return
+                project = PlanOps.setDimensionOffset(op.origin, op.id, Dimensions.offsetThrough(d, w))
+            }
             is DragOp.MoveItem -> {
                 val item = op.origin.item(op.id) ?: return
                 val raw = w + op.grab
@@ -455,6 +479,17 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveVertex -> commit(project, before = op.origin)
             is DragOp.MoveWall -> commit(project, before = op.origin)
             is DragOp.SlideOpening -> commit(project, before = op.origin)
+            is DragOp.DrawMeasure -> {
+                val d = draft as? Draft.MeasureDraft
+                draft = null
+                if (d != null) {
+                    PlanOps.addDimension(project, d.a, d.b)?.let { (p, dim) ->
+                        commit(p)
+                        selection = Selection(Kind.DIMENSION, dim.id)
+                    }
+                }
+            }
+            is DragOp.MoveDimension -> commit(project, before = op.origin)
             is DragOp.MoveItem -> commit(project, before = op.origin)
             is DragOp.RotateItem -> commit(project, before = op.origin)
             is DragOp.Pan, null -> Unit
@@ -468,6 +503,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveWall -> project = op.origin
             is DragOp.SlideOpening -> project = op.origin
             is DragOp.MoveItem -> project = op.origin
+            is DragOp.MoveDimension -> project = op.origin
             is DragOp.RotateItem -> project = op.origin
             else -> Unit
         }

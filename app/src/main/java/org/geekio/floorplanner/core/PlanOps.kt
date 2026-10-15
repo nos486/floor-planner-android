@@ -1,5 +1,6 @@
 package org.geekio.floorplanner.core
 
+import org.geekio.floorplanner.model.Dimension
 import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.Item
 import org.geekio.floorplanner.model.Opening
@@ -22,7 +23,7 @@ data class OpeningGeometry(
 /** Door swing drawing data: the leaf goes from [hinge] to [leafEnd], the arc from [strike] to [leafEnd]. */
 data class DoorSwing(val hinge: P, val strike: P, val leafEnd: P, val radius: Double, val clockwise: Boolean)
 
-enum class Kind { WALL, DOOR, WINDOW, ROOM, ITEM }
+enum class Kind { WALL, DOOR, WINDOW, ROOM, ITEM, DIMENSION }
 
 data class Selection(val kind: Kind, val id: String)
 
@@ -166,8 +167,18 @@ object PlanOps {
         return p.copy(items = p.items + copy) to copy
     }
 
+    fun addDimension(p: Project, a: P, b: P): Pair<Project, Dimension>? {
+        if (a.dist(b) < MIN_WALL_LENGTH) return null
+        val d = Dimensions.create(a, b)
+        return p.copy(dimensions = p.dimensions + d) to d
+    }
+
+    fun setDimensionOffset(p: Project, id: String, offset: Double) =
+        p.copy(dimensions = p.dimensions.map { if (it.id == id) it.copy(offset = roundTo(offset, 1)) else it })
+
     fun delete(p: Project, sel: Selection): Project = when (sel.kind) {
         Kind.ITEM -> p.copy(items = p.items.filter { it.id != sel.id })
+        Kind.DIMENSION -> p.copy(dimensions = p.dimensions.filter { it.id != sel.id })
         Kind.WALL -> deleteWall(p, sel.id)
         Kind.DOOR -> p.copy(doors = p.doors.filter { it.id != sel.id })
         Kind.WINDOW -> p.copy(windows = p.windows.filter { it.id != sel.id })
@@ -227,6 +238,7 @@ object PlanOps {
 
     fun hit(p: Project, point: P, tolerance: Double): Selection? =
         hitOpening(p, point, tolerance)
+            ?: Dimensions.hit(p, point, tolerance)?.let { Selection(Kind.DIMENSION, it.id) }
             ?: hitItem(p, point)?.let { Selection(Kind.ITEM, it.id) }
             ?: hitWall(p, point, tolerance)?.let { Selection(Kind.WALL, it.id) }
             ?: hitRoom(p, point)?.let { Selection(Kind.ROOM, it.id) }

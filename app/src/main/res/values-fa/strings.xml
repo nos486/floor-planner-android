@@ -91,4 +91,9 @@
     <string name="f_bathtub">وان</string>
     <string name="f_shower">دوش</string>
     <string name="f_basin">روشویی</string>
+    <string name="tool_measure">متر</string>
+    <string name="measurement">اندازه</string>
+    <string name="hint_measure">بین دو نقطه بکشید تا فاصله را ببینید</string>
+    <string name="hint_move_dimension">خط را بکشید تا از نقشه فاصله بگیرد.</string>
+    <string name="show_overall">نمایش ابعاد کلی</string>
 </resources>
