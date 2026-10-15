@@ -129,8 +129,13 @@ object ProjectIO {
                 sb.append("</g>\n")
             }
         }
-        for (item in p.items) {
-            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="#4b5563" stroke-width="1.5" fill="none">""").append('\n')
+        for (item in p.items.sortedBy { Furniture.isFixture(it) }) {
+            val stroke = when (Furniture.type(item.type)?.category) {
+                FurnitureCategory.ELECTRICAL -> "#d97706"
+                FurnitureCategory.PLUMBING -> "#0284c7"
+                else -> "#4b5563"
+            }
+            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="$stroke" stroke-width="1.5" fill="none">""").append('\n')
             for (prim in Furniture.shapes(item)) sb.append(svgPrim(prim)).append('\n')
             sb.append("</g>\n")
         }

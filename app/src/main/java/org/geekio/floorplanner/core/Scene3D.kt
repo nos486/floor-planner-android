@@ -72,6 +72,7 @@ object Scene3D {
         FurnitureCategory.BEDROOM to 0xFF9DB4C0,
         FurnitureCategory.KITCHEN to 0xFFD3CEC2,
         FurnitureCategory.BATHROOM to 0xFFE6F0F4,
+        FurnitureCategory.PLUMBING to 0xFFE6F0F4,
     )
 
     /** Furniture height in cm, by catalog key. */
@@ -90,6 +91,8 @@ object Scene3D {
         "toilet" -> 40.0
         "squat_toilet", "shower" -> 5.0
         "bathtub" -> 55.0
+        "radiator" -> 60.0
+        "water_heater" -> 150.0
         else -> 75.0
     }
 
@@ -103,7 +106,10 @@ object Scene3D {
             faces += Face(poly.map { V3(it.x, it.y, 0.0) }, blend(c, 0xFFFFFFFF, if (room.color != null) 0.25 else 0.6), FaceKind.FLOOR)
         }
         for (wall in p.walls) wallFaces(p, wall, height, faces)
-        for (item in p.items) itemFaces(item, faces)
+        for (item in p.items) {
+            if (Furniture.isFixture(item) && item.type != "radiator" && item.type != "water_heater") continue
+            itemFaces(item, faces)
+        }
         return faces
     }
 

@@ -30,6 +30,7 @@ import org.geekio.floorplanner.core.DimensionGeometry
 import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Furniture
+import org.geekio.floorplanner.core.FurnitureCategory
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
@@ -46,6 +47,9 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 private fun P.o() = Offset(x.toFloat(), y.toFloat())
+
+val ELECTRICAL_COLOR = Color(0xFFD97706)
+val PLUMBING_COLOR = Color(0xFF0284C7)
 
 
 /** What to draw and where: screen = world * [zoom] + [pan]. */
@@ -245,13 +249,18 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
             }
         }
 
-        // Furniture
-        for (item in project.items) {
+        // Furniture, then electrical and plumbing symbols on top
+        for (item in project.items.sortedBy { Furniture.isFixture(it) }) {
             val isSel = v.isSelected(Kind.ITEM, item.id)
+            val stroke = when (Furniture.type(item.type)?.category) {
+                FurnitureCategory.ELECTRICAL -> ELECTRICAL_COLOR
+                FurnitureCategory.PLUMBING -> PLUMBING_COLOR
+                else -> colors.itemStroke
+            }
             drawItem(
                 item,
                 if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
-                if (isSel) colors.selected else colors.itemStroke,
+                if (isSel) colors.selected else stroke,
                 maxOf(1.2f, 1.5f * px),
             )
         }

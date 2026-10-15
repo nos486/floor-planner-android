@@ -72,6 +72,18 @@ fun furnitureName(key: String): Int = when (key) {
     "bathtub" -> R.string.f_bathtub
     "shower" -> R.string.f_shower
     "basin" -> R.string.f_basin
+    "socket" -> R.string.f_socket
+    "switch" -> R.string.f_switch
+    "ceiling_light" -> R.string.f_ceiling_light
+    "wall_light" -> R.string.f_wall_light
+    "power_panel" -> R.string.f_power_panel
+    "ac_unit" -> R.string.f_ac_unit
+    "water_point" -> R.string.f_water_point
+    "drain" -> R.string.f_drain
+    "gas_valve" -> R.string.f_gas_valve
+    "water_heater" -> R.string.f_water_heater
+    "boiler" -> R.string.f_boiler
+    "radiator" -> R.string.f_radiator
     else -> R.string.f_item
 }
 
@@ -80,4 +92,6 @@ fun categoryName(c: FurnitureCategory): Int = when (c) {
     FurnitureCategory.BEDROOM -> R.string.cat_bedroom
     FurnitureCategory.KITCHEN -> R.string.cat_kitchen
     FurnitureCategory.BATHROOM -> R.string.cat_bathroom
+    FurnitureCategory.ELECTRICAL -> R.string.cat_electrical
+    FurnitureCategory.PLUMBING -> R.string.cat_plumbing
 }

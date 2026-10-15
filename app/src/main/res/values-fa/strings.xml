@@ -163,4 +163,18 @@
     <string name="view_3d">نمای سه‌بعدی</string>
     <string name="low_walls">دیوار کوتاه</string>
     <string name="hint_3d">برای چرخیدن بکشید، برای بزرگ‌نمایی دو انگشتی</string>
+    <string name="cat_electrical">برق</string>
+    <string name="cat_plumbing">لوله‌کشی و گرمایش</string>
+    <string name="f_socket">پریز</string>
+    <string name="f_switch">کلید برق</string>
+    <string name="f_ceiling_light">چراغ سقفی</string>
+    <string name="f_wall_light">چراغ دیواری</string>
+    <string name="f_power_panel">تابلو برق</string>
+    <string name="f_ac_unit">کولر گازی</string>
+    <string name="f_water_point">شیر آب</string>
+    <string name="f_drain">کفشور</string>
+    <string name="f_gas_valve">شیر گاز</string>
+    <string name="f_water_heater">آبگرمکن</string>
+    <string name="f_boiler">پکیج</string>
+    <string name="f_radiator">رادیاتور</string>
 </resources>

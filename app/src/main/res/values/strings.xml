@@ -163,4 +163,18 @@
     <string name="view_3d">3D view</string>
     <string name="low_walls">Low walls</string>
     <string name="hint_3d">Drag to turn around, pinch to zoom</string>
+    <string name="cat_electrical">Electrical</string>
+    <string name="cat_plumbing">Plumbing and heating</string>
+    <string name="f_socket">Socket</string>
+    <string name="f_switch">Light switch</string>
+    <string name="f_ceiling_light">Ceiling light</string>
+    <string name="f_wall_light">Wall light</string>
+    <string name="f_power_panel">Fuse box</string>
+    <string name="f_ac_unit">Air conditioner</string>
+    <string name="f_water_point">Water point</string>
+    <string name="f_drain">Floor drain</string>
+    <string name="f_gas_valve">Gas valve</string>
+    <string name="f_water_heater">Water heater</string>
+    <string name="f_boiler">Wall boiler</string>
+    <string name="f_radiator">Radiator</string>
 </resources>

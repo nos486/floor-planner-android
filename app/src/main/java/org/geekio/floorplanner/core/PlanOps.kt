@@ -32,6 +32,7 @@ data class Selection(val kind: Kind, val id: String)
 object PlanOps {
     const val MIN_WALL_LENGTH = 5.0
     private const val JOINT_TOLERANCE = 0.5
+    private const val FIXTURE_REACH = 12.0
 
     fun withRooms(p: Project): Project = p.copy(rooms = RoomDetector.detect(p.walls, p.scale, p.rooms))
 
@@ -270,7 +271,9 @@ object PlanOps {
 
     /** Topmost item under [point] (items drawn last win). */
     fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
-        p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+        // Small electrical and plumbing symbols sit on top of furniture and are easier to hit.
+        p.items.lastOrNull { Furniture.isFixture(it) && Furniture.contains(it, point, maxOf(tolerance, FIXTURE_REACH)) }
+            ?: p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
 
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }
