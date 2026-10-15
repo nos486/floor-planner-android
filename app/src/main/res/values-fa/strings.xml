@@ -160,4 +160,7 @@
     <string name="by_room">به تفکیک اتاق</string>
     <string name="room_estimate">کف %1$s · دیوار %2$s</string>
     <string name="estimate_note">از شکل اتاق‌ها و ارتفاع سقف حساب شده و در و پنجره کم شده است. کمی بیشتر بخرید.</string>
+    <string name="view_3d">نمای سه‌بعدی</string>
+    <string name="low_walls">دیوار کوتاه</string>
+    <string name="hint_3d">برای چرخیدن بکشید، برای بزرگ‌نمایی دو انگشتی</string>
 </resources>

@@ -160,4 +160,7 @@
     <string name="by_room">By room</string>
     <string name="room_estimate">Floor %1$s · walls %2$s</string>
     <string name="estimate_note">Worked out from the room shapes and ceiling height, with doors and windows taken off. Buy a little extra.</string>
+    <string name="view_3d">3D view</string>
+    <string name="low_walls">Low walls</string>
+    <string name="hint_3d">Drag to turn around, pinch to zoom</string>
 </resources>

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -206,6 +207,9 @@ fun PlanScreen(vm: PlanViewModel) {
                     IconButton(onClick = vm::redo, enabled = vm.canRedo) {
                         Icon(Icons.AutoMirrored.Filled.Redo, stringResource(R.string.redo))
                     }
+                    IconButton(onClick = { dialog = ScreenDialog.View3D }) {
+                        Icon(Icons.Filled.ViewInAr, stringResource(R.string.view_3d))
+                    }
                     IconButton(onClick = vm::fitToScreen) {
                         Icon(Icons.Filled.FitScreen, stringResource(R.string.fit))
                     }
@@ -322,6 +326,7 @@ fun PlanScreen(vm: PlanViewModel) {
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
+        ScreenDialog.View3D -> ThreeDView(vm.project) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
             stringResource(R.string.share),
             listOf(
@@ -358,6 +363,7 @@ sealed interface ScreenDialog {
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
     data object Materials : ScreenDialog
+    data object View3D : ScreenDialog
     data object Share : ScreenDialog
     data object Export : ScreenDialog
     class Number(val title: String, val initial: String, val onValue: (Double) -> Unit) : ScreenDialog
