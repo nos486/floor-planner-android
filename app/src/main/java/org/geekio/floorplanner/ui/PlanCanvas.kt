@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.geekio.floorplanner.core.DimensionGeometry
 import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
@@ -43,10 +45,6 @@ import kotlin.math.floor
 
 private fun P.o() = Offset(x.toFloat(), y.toFloat())
 
-private val roomPalette = listOf(
-    Color(0xFF4F8CFF), Color(0xFF36B37E), Color(0xFFFFAB00),
-    Color(0xFFFF5630), Color(0xFF6554C0), Color(0xFF00B8D9),
-)
 
 /** What to draw and where: screen = world * [zoom] + [pan]. */
 class PlanView(
@@ -203,7 +201,18 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 close()
             }
             val isSel = sel?.kind == Kind.ROOM && sel.id == room.id
-            drawPath(path, roomPalette[i % roomPalette.size].copy(alpha = if (isSel) 0.35f else 0.15f))
+            val custom = room.color != null
+            val base = Color(FloorPatterns.parseColor(FloorPatterns.colorFor(room.color, i)) ?: 0xFF4F8CFF)
+            drawPath(path, base.copy(alpha = if (custom) (if (isSel) 0.8f else 0.6f) else (if (isSel) 0.35f else 0.15f)))
+            if (room.floor != null && FloorPatterns.spacing(room.floor) * zoom >= 4) {
+                val min = P(poly.minOf { it.x }, poly.minOf { it.y })
+                val max = P(poly.maxOf { it.x }, poly.maxOf { it.y })
+                clipPath(path) {
+                    for ((a, b) in FloorPatterns.lines(room.floor, min, max)) {
+                        drawLine(colors.wall.copy(alpha = 0.22f), a.o(), b.o(), maxOf(0.8f, px))
+                    }
+                }
+            }
         }
 
         // Furniture

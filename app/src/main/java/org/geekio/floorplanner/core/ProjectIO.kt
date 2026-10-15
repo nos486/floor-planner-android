@@ -43,7 +43,6 @@ object ProjectIO {
         return "${base.ifEmpty { "floor_plan" }}.$ext"
     }
 
-    private val roomColors = listOf("#4f8cff", "#36b37e", "#ffab00", "#ff5630", "#6554c0", "#00b8d9")
 
     private fun n(v: Double) = String.format(Locale.US, "%.1f", v)
 
@@ -99,7 +98,18 @@ object ProjectIO {
 
         p.rooms.forEachIndexed { i, r ->
             val poly = r.polygon.joinToString(" ") { "${n(it.x)},${n(it.y)}" }
-            sb.append("""<polygon points="$poly" fill="${roomColors[i % roomColors.size]}" fill-opacity="0.15"/>""").append('\n')
+            val opacity = if (r.color != null) "0.6" else "0.15"
+            sb.append("""<polygon points="$poly" fill="${FloorPatterns.colorFor(r.color, i)}" fill-opacity="$opacity"/>""").append('\n')
+            if (r.floor != null && r.polygon.size >= 3) {
+                val min = P(r.polygon.minOf { it.x }, r.polygon.minOf { it.y })
+                val max = P(r.polygon.maxOf { it.x }, r.polygon.maxOf { it.y })
+                sb.append("""<clipPath id="clip$i"><polygon points="$poly"/></clipPath>""").append('\n')
+                sb.append("""<g clip-path="url(#clip$i)" stroke="#2b2f36" stroke-opacity="0.22" stroke-width="1">""")
+                for ((a, b) in FloorPatterns.lines(r.floor, min, max)) {
+                    sb.append("""<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}"/>""")
+                }
+                sb.append("</g>\n")
+            }
         }
         for (item in p.items) {
             sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="#4b5563" stroke-width="1.5" fill="none">""").append('\n')

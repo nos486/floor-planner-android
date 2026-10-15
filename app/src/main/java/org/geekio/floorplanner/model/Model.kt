@@ -87,6 +87,10 @@ data class Room(
     val points: List<List<Double>> = emptyList(),
     val areaM2: Double = 0.0,
     val centroid: List<Double> = emptyList(),
+    /** Fill colour as "#rrggbb", null for the automatic colour. */
+    val color: String? = null,
+    /** Floor material key (see FloorPatterns), null for a plain fill. */
+    val floor: String? = null,
 ) {
     val polygon: List<P> get() = points.map { P.of(it) }
     val center: P? get() = if (centroid.size >= 2) P.of(centroid) else null

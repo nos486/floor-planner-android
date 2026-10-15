@@ -1,6 +1,13 @@
 package org.geekio.floorplanner.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,12 +22,15 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FormatColorReset
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,14 +42,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Kind
 
 /** Bottom panel with the properties of the selected wall / door / window / room. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
     val sel = vm.selection ?: return
@@ -143,6 +157,27 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                 LabeledRow(stringResource(R.string.area)) {
                     Text(fmt(room.areaM2) + " m²", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
                 }
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Swatch(null, room.color == null) { vm.setRoomColor(room.id, null) }
+                    for (hex in FloorPatterns.swatches) {
+                        Swatch(hex, room.color == hex) { vm.setRoomColor(room.id, hex) }
+                    }
+                }
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (m in listOf<String?>(null) + FloorPatterns.materials) {
+                        FilterChip(
+                            selected = room.floor == m,
+                            onClick = { vm.setRoomFloor(room.id, m) },
+                            label = { Text(stringResource(materialName(m))) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -161,6 +196,33 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             body()
         }
     }
+}
+
+/** A round colour button; [hex] null is the automatic colour. */
+@Composable
+private fun Swatch(hex: String?, selected: Boolean, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val color = FloorPatterns.parseColor(hex)?.let { Color(it) }
+    Box(
+        Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(color ?: cs.surfaceVariant)
+            .border(if (selected) 3.dp else 1.dp, if (selected) cs.primary else cs.outline, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (color == null) Icon(Icons.Filled.FormatColorReset, stringResource(R.string.color_auto), Modifier.size(18.dp))
+    }
+}
+
+fun materialName(key: String?): Int = when (key) {
+    "wood" -> R.string.mat_wood
+    "tile" -> R.string.mat_tile
+    "mosaic" -> R.string.mat_mosaic
+    "stone" -> R.string.mat_stone
+    "carpet" -> R.string.mat_carpet
+    else -> R.string.mat_none
 }
 
 /** A "label  [-] value cm [+]" row. */

@@ -146,6 +146,12 @@ object PlanOps {
         else updateWindow(p, id) { it.copy(width = w, offset = offset) }
     }
 
+    fun setRoomColor(p: Project, id: String, color: String?) =
+        p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(color = color) else it })
+
+    fun setRoomFloor(p: Project, id: String, floor: String?) =
+        p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(floor = floor) else it })
+
     fun renameRoom(p: Project, id: String, name: String) =
         p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(name = name.trim().ifEmpty { it.name }) else it })
 

@@ -49,6 +49,8 @@ object RoomDetector {
                 points = poly.map { it.rounded().toList() },
                 areaM2 = roundTo(areaM2, 2),
                 centroid = c.rounded().toList(),
+                color = match?.color,
+                floor = match?.floor,
             )
         }
 

@@ -124,4 +124,11 @@
     <string name="rk_bathroom">Bathroom</string>
     <string name="rk_wc">WC</string>
     <string name="rk_storage">Storage</string>
+    <string name="color_auto">Automatic colour</string>
+    <string name="mat_none">Plain</string>
+    <string name="mat_wood">Parquet</string>
+    <string name="mat_tile">Tiles</string>
+    <string name="mat_mosaic">Small tiles</string>
+    <string name="mat_stone">Stone</string>
+    <string name="mat_carpet">Carpet</string>
 </resources>

@@ -290,6 +290,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun renameRoom(id: String, name: String) = commit(PlanOps.renameRoom(project, id, name))
 
+    fun setRoomColor(id: String, color: String?) = commit(PlanOps.setRoomColor(project, id, color))
+
+    fun setRoomFloor(id: String, floor: String?) = commit(PlanOps.setRoomFloor(project, id, floor))
+
     // ---------------- Furniture ----------------
 
     /** Adds a [type] item in the middle of the screen (against a wall if one is close) and selects it. */

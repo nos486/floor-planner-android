@@ -124,4 +124,11 @@
     <string name="rk_bathroom">حمام</string>
     <string name="rk_wc">سرویس بهداشتی</string>
     <string name="rk_storage">انباری</string>
+    <string name="color_auto">رنگ خودکار</string>
+    <string name="mat_none">ساده</string>
+    <string name="mat_wood">پارکت</string>
+    <string name="mat_tile">سرامیک</string>
+    <string name="mat_mosaic">کاشی ریز</string>
+    <string name="mat_stone">سنگ</string>
+    <string name="mat_carpet">موکت</string>
 </resources>
