@@ -1,6 +1,9 @@
 package org.geekio.floorplanner.core
 
+import org.geekio.floorplanner.model.Dimension
 import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Item
+import org.geekio.floorplanner.model.Label
 import org.geekio.floorplanner.model.Opening
 import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
@@ -21,7 +24,7 @@ data class OpeningGeometry(
 /** Door swing drawing data: the leaf goes from [hinge] to [leafEnd], the arc from [strike] to [leafEnd]. */
 data class DoorSwing(val hinge: P, val strike: P, val leafEnd: P, val radius: Double, val clockwise: Boolean)
 
-enum class Kind { WALL, DOOR, WINDOW, ROOM }
+enum class Kind { WALL, DOOR, WINDOW, ROOM, ITEM, DIMENSION, LABEL }
 
 data class Selection(val kind: Kind, val id: String)
 
@@ -144,10 +147,77 @@ object PlanOps {
         else updateWindow(p, id) { it.copy(width = w, offset = offset) }
     }
 
+    fun setRoomColor(p: Project, id: String, color: String?) =
+        p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(color = color) else it })
+
+    fun setRoomFloor(p: Project, id: String, floor: String?) =
+        p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(floor = floor) else it })
+
     fun renameRoom(p: Project, id: String, name: String) =
         p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(name = name.trim().ifEmpty { it.name }) else it })
 
+    fun addItem(p: Project, item: Item): Project = p.copy(items = p.items + item)
+
+    fun updateItem(p: Project, id: String, f: (Item) -> Item) = p.copy(items = p.items.map { if (it.id == id) f(it) else it })
+
+    fun setItemSize(p: Project, id: String, width: Double, depth: Double) =
+        updateItem(p, id) { it.copy(width = width.coerceIn(10.0, 1000.0), depth = depth.coerceIn(10.0, 1000.0)) }
+
+    fun rotateItem(p: Project, id: String, degrees: Double) =
+        updateItem(p, id) { it.copy(rotation = Furniture.normalizeAngle(it.rotation + degrees)) }
+
+    /** Copies an item next to the original. Returns the new project and the copy. */
+    fun duplicateItem(p: Project, id: String): Pair<Project, Item>? {
+        val item = p.item(id) ?: return null
+        val shift = Furniture.toWorld(item.copy(x = 0.0, y = 0.0), P(item.width + 20, 0.0))
+        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1))
+        return p.copy(items = p.items + copy) to copy
+    }
+
+    fun addDimension(p: Project, a: P, b: P): Pair<Project, Dimension>? {
+        if (a.dist(b) < MIN_WALL_LENGTH) return null
+        val d = Dimensions.create(a, b)
+        return p.copy(dimensions = p.dimensions + d) to d
+    }
+
+    fun setDimensionOffset(p: Project, id: String, offset: Double) =
+        p.copy(dimensions = p.dimensions.map { if (it.id == id) it.copy(offset = roundTo(offset, 1)) else it })
+
+    fun addLabel(p: Project, text: String, at: P, size: Double, arrowTip: P? = null): Pair<Project, Label>? {
+        val t = text.trim()
+        if (t.isEmpty()) return null
+        val a = at.rounded()
+        val label = Label(generateId("lbl"), t, a.x, a.y, size, arrowTip?.rounded()?.toList())
+        return p.copy(labels = p.labels + label) to label
+    }
+
+    fun updateLabel(p: Project, id: String, f: (Label) -> Label) = p.copy(labels = p.labels.map { if (it.id == id) f(it) else it })
+
+    /** Moves a label and its arrow tip by [delta]. */
+    fun moveLabel(p: Project, id: String, delta: P) = updateLabel(p, id) { l ->
+        val a = (l.anchor + delta).rounded()
+        l.copy(x = a.x, y = a.y, arrow = l.tip?.let { (it + delta).rounded().toList() })
+    }
+
+    /** The two back corners of an arrow head of length [len] pointing at [tip] from [from]. */
+    fun arrowHead(from: P, tip: P, len: Double): Pair<P, P> {
+        val back = (from - tip).normalized() * len
+        val side = back.perp() * 0.45
+        return (tip + back + side) to (tip + back - side)
+    }
+
+    /** Topmost label whose text box or arrow is within [tolerance] of [point]. */
+    fun hitLabel(p: Project, point: P, tolerance: Double): Label? = p.labels.lastOrNull { l ->
+        val halfW = l.size * 0.3 * maxOf(1, l.text.length) + tolerance
+        val halfH = l.size * 0.6 + tolerance
+        val inBox = kotlin.math.abs(point.x - l.x) <= halfW && kotlin.math.abs(point.y - l.y) <= halfH
+        inBox || l.tip?.let { projectPointOnSegment(point, l.anchor, it).distance <= tolerance } == true
+    }
+
     fun delete(p: Project, sel: Selection): Project = when (sel.kind) {
+        Kind.ITEM -> p.copy(items = p.items.filter { it.id != sel.id })
+        Kind.DIMENSION -> p.copy(dimensions = p.dimensions.filter { it.id != sel.id })
+        Kind.LABEL -> p.copy(labels = p.labels.filter { it.id != sel.id })
         Kind.WALL -> deleteWall(p, sel.id)
         Kind.DOOR -> p.copy(doors = p.doors.filter { it.id != sel.id })
         Kind.WINDOW -> p.copy(windows = p.windows.filter { it.id != sel.id })
@@ -198,11 +268,18 @@ object PlanOps {
             .filter { (w, d) -> d <= w.thickness / 2 + tolerance }
             .minByOrNull { it.second }?.first
 
+    /** Topmost item under [point] (items drawn last win). */
+    fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
+        p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }
 
     fun hit(p: Project, point: P, tolerance: Double): Selection? =
         hitOpening(p, point, tolerance)
+            ?: hitLabel(p, point, tolerance)?.let { Selection(Kind.LABEL, it.id) }
+            ?: Dimensions.hit(p, point, tolerance)?.let { Selection(Kind.DIMENSION, it.id) }
+            ?: hitItem(p, point)?.let { Selection(Kind.ITEM, it.id) }
             ?: hitWall(p, point, tolerance)?.let { Selection(Kind.WALL, it.id) }
             ?: hitRoom(p, point)?.let { Selection(Kind.ROOM, it.id) }
 }

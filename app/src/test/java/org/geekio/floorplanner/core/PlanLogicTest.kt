@@ -176,7 +176,8 @@ class PlanLogicTest {
         val p = PlanOps.withRooms(Project(walls = box, doors = listOf(Door("d1", "w1", 200.0))))
         val svg = ProjectIO.toSvg(p)
         assertTrue(svg.startsWith("<svg"))
-        assertEquals(4 + 2, Regex("<line").findAll(svg).count())
+        // 4 walls, 2 for the door, 5 for each of the two overall dimensions.
+        assertEquals(4 + 2 + 2 * 5, Regex("<line").findAll(svg).count())
         assertTrue(svg.contains("Room 1"))
         assertTrue(svg.contains("12.00 m²"))
     }

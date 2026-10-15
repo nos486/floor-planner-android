@@ -14,6 +14,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
@@ -56,6 +57,9 @@ class StoreScreenshots {
 
     @Test
     fun shot4_door_tool() = shoot(Tool.DOOR) { Selection(Kind.DOOR, "d_bed") }
+
+    @Test
+    fun shot5_furniture_selected() = shoot(Tool.SELECT) { Selection(Kind.ITEM, "it_sofa") }
 
     private fun shoot(tool: Tool, dark: Boolean = false, select: (Project) -> Selection?) {
         val vm = PlanViewModel(Application())
@@ -108,9 +112,38 @@ class StoreScreenshots {
             P(620.0, 190.0) to "Bedroom",
             P(620.0, 490.0) to "Bathroom",
         )
+        val floors = mapOf(
+            "Kitchen" to ("#d9d9d9" to "tile"),
+            "Living room" to ("#e8d5b7" to "wood"),
+            "Bedroom" to ("#c8a27a" to "wood"),
+            "Bathroom" to ("#a3b8c8" to "mosaic"),
+        )
         for ((pt, name) in names) {
-            p.rooms.firstOrNull { pointInPolygon(pt, it.polygon) }?.let { p = PlanOps.renameRoom(p, it.id, name) }
+            p.rooms.firstOrNull { pointInPolygon(pt, it.polygon) }?.let {
+                val (color, floor) = floors.getValue(name)
+                p = PlanOps.setRoomFloor(PlanOps.setRoomColor(PlanOps.renameRoom(p, it.id, name), it.id, color), it.id, floor)
+            }
         }
+        fun item(id: String, type: String, x: Double, y: Double, rotation: Double = 0.0) =
+            Furniture.create(Furniture.type(type)!!, P(x, y), rotation).copy(id = id)
+        val items = listOf(
+            item("it_sofa", "sofa3", 220.0, 545.0, 180.0),
+            item("it_coffee", "coffee_table", 220.0, 430.0),
+            item("it_tv", "tv_stand", 32.5, 430.0, 270.0),
+            item("it_fridge", "fridge", 45.0, 45.0),
+            item("it_stove", "stove", 150.0, 40.0),
+            item("it_sink", "kitchen_sink", 250.0, 40.0),
+            item("it_table", "round_table", 340.0, 175.0),
+            item("it_bed", "bed_double", 625.0, 110.0),
+            item("it_ns1", "nightstand", 515.0, 30.0),
+            item("it_ns2", "nightstand", 735.0, 30.0),
+            item("it_wardrobe", "wardrobe", 760.0, 270.0, 90.0),
+            item("it_toilet", "toilet", 757.5, 445.0, 90.0),
+            item("it_tub", "bathtub", 600.0, 552.5, 180.0),
+            item("it_basin", "basin", 478.5, 560.0, 270.0),
+        )
+        items.forEach { p = PlanOps.addItem(p, it) }
+        p = PlanOps.addLabel(p, "Entrance", P(150.0, 700.0), 25.0, P(150.0, 615.0))!!.first
         return p
     }
 }

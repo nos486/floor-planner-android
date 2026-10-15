@@ -14,20 +14,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Chair
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.FitScreen
+import androidx.compose.material.icons.filled.HighlightAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,11 +64,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.Units
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 
 const val PRIVACY_POLICY_URL = "https://github.com/nos486/floor-planner-android/blob/main/PRIVACY.md"
@@ -73,6 +84,7 @@ fun PlanScreen(vm: PlanViewModel) {
     val snackbar = remember { SnackbarHostState() }
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<ScreenDialog?>(null) }
+    var addOpen by remember { mutableStateOf(false) }
 
     vm.message?.let { msgRes ->
         val text = stringResource(msgRes)
@@ -99,7 +111,56 @@ fun PlanScreen(vm: PlanViewModel) {
         write(it, vm.exportJson())
     }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
-        write(it, vm.exportSvg())
+        write(it, ProjectIO.toSvg(vm.project, vm.settings.units))
+    }
+
+    fun saveBytes(uri: Uri?, render: () -> ByteArray) {
+        uri ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bytes = render()
+                    context.contentResolver.openOutputStream(uri, "w")!!.use { it.write(bytes) }
+                }.isSuccess
+            }
+            vm.message = if (ok) R.string.msg_saved else R.string.msg_save_failed
+        }
+    }
+
+    val project = vm.project
+    val settings = vm.settings
+    val savePng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
+        saveBytes(it) { PlanExport.png(context, project, settings) }
+    }
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {
+        saveBytes(it) { PlanExport.pdf(context, project, settings) }
+    }
+
+    fun share(ext: String, mime: String, render: () -> ByteArray) {
+        scope.launch {
+            val file = withContext(Dispatchers.Default) {
+                runCatching {
+                    val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+                    File(dir, ProjectIO.fileName(project, ext)).also { it.writeBytes(render()) }
+                }.getOrNull()
+            }
+            if (file == null) {
+                vm.message = R.string.msg_save_failed
+                return@launch
+            }
+            val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, project.projectName)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try {
+                context.startActivity(Intent.createChooser(send, null))
+            } catch (e: ActivityNotFoundException) {
+                vm.message = R.string.msg_no_share_app
+            }
+        }
     }
     val openJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -107,21 +168,32 @@ fun PlanScreen(vm: PlanViewModel) {
             val text = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() } }.getOrNull()
             }
-            if (!vm.loadJson(text)) vm.message = R.string.msg_open_failed
+            if (!vm.importJson(text)) vm.message = R.string.msg_open_failed
         }
     }
 
-    BackHandler(enabled = vm.selection != null) { vm.clearSelection() }
+    BackHandler {
+        when {
+            vm.multiSelect -> vm.enableMultiSelect(false)
+            vm.selection != null -> vm.clearSelection()
+            else -> vm.closeProject()
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = vm::closeProject) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.my_projects))
+                    }
+                },
                 title = {
                     Column(Modifier.clickable { dialog = ScreenDialog.RenameProject }) {
                         Text(vm.project.projectName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            stringResource(R.string.total_area, fmt(vm.project.totalAreaM2), vm.project.rooms.size),
+                            stringResource(R.string.total_area, Units.area(vm.project.totalAreaM2, vm.settings.units), vm.project.rooms.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -142,6 +214,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             Icon(Icons.Filled.MoreVert, stringResource(R.string.more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.my_projects)) }, onClick = {
+                                menuOpen = false; vm.closeProject()
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.new_project)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.NewProject
                             })
@@ -151,8 +226,11 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.save_json)) }, onClick = {
                                 menuOpen = false; saveJson.launch(ProjectIO.fileName(vm.project, "json"))
                             })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.export_svg)) }, onClick = {
-                                menuOpen = false; saveSvg.launch(ProjectIO.fileName(vm.project, "svg"))
+                            DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Share
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Export
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
@@ -178,12 +256,34 @@ fun PlanScreen(vm: PlanViewModel) {
                     ToolItem(vm, Tool.WALL, Icons.Filled.Timeline, R.string.tool_wall)
                     ToolItem(vm, Tool.DOOR, Icons.Filled.DoorFront, R.string.tool_door)
                     ToolItem(vm, Tool.WINDOW, Icons.Filled.Window, R.string.tool_window)
+                    // The extra tools picked from the Add sheet show up in its place.
+                    val (addIcon, addLabel) = when (vm.tool) {
+                        Tool.MEASURE -> Icons.Filled.Straighten to R.string.tool_measure
+                        Tool.TEXT -> Icons.Filled.TextFields to R.string.tool_text
+                        else -> Icons.Filled.Chair to R.string.tool_add
+                    }
+                    NavigationBarItem(
+                        selected = vm.tool == Tool.MEASURE || vm.tool == Tool.TEXT,
+                        onClick = { addOpen = true },
+                        icon = { Icon(addIcon, null) },
+                        label = { Text(stringResource(addLabel)) },
+                    )
                 }
             }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             PlanCanvas(vm, Modifier.fillMaxSize())
+            if (vm.tool == Tool.SELECT && vm.project.walls.isNotEmpty()) {
+                FilterChip(
+                    selected = vm.multiSelect,
+                    onClick = { vm.enableMultiSelect(!vm.multiSelect) },
+                    label = { Text(stringResource(R.string.select_several)) },
+                    leadingIcon = { Icon(Icons.Filled.HighlightAlt, null, Modifier.size(FilterChipDefaults.IconSize)) },
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                )
+            }
             if (vm.project.walls.isEmpty() && vm.tool == Tool.WALL) {
                 Surface(
                     Modifier.align(Alignment.TopCenter).padding(12.dp),
@@ -196,17 +296,40 @@ fun PlanScreen(vm: PlanViewModel) {
         }
     }
 
+    if (addOpen) AddSheet(vm) { addOpen = false }
+
+    vm.labelRequest?.let {
+        TextInputDialog(
+            title = stringResource(R.string.label_text), initial = "",
+            onDismiss = { vm.labelRequest = null }, onConfirm = { text -> vm.addLabel(text) },
+        )
+    }
+
     when (val d = dialog) {
         ScreenDialog.RenameProject -> TextInputDialog(
             title = stringResource(R.string.project_name), initial = vm.project.projectName,
             onDismiss = { dialog = null }, onConfirm = { vm.renameProject(it); dialog = null },
         )
-        ScreenDialog.NewProject -> TextInputDialog(
-            title = stringResource(R.string.new_project), initial = stringResource(R.string.default_project_name),
-            message = stringResource(R.string.new_project_warning),
-            onDismiss = { dialog = null }, onConfirm = { vm.newProject(it); dialog = null },
-        )
+        ScreenDialog.NewProject -> NewProjectDialog(vm.settings.units, onDismiss = { dialog = null }) { p ->
+            dialog = null
+            vm.createProject(p.copy(scale = vm.project.scale))
+        }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        ScreenDialog.Share -> ChoiceDialog(
+            stringResource(R.string.share),
+            listOf(
+                stringResource(R.string.format_png) to { share("png", "image/png") { PlanExport.png(context, project, settings) } },
+                stringResource(R.string.format_pdf) to { share("pdf", "application/pdf") { PlanExport.pdf(context, project, settings) } },
+            ),
+        ) { dialog = null }
+        ScreenDialog.Export -> ChoiceDialog(
+            stringResource(R.string.export),
+            listOf(
+                stringResource(R.string.format_png) to { savePng.launch(ProjectIO.fileName(project, "png")) },
+                stringResource(R.string.format_pdf) to { savePdf.launch(ProjectIO.fileName(project, "pdf")) },
+                stringResource(R.string.format_svg) to { saveSvg.launch(ProjectIO.fileName(project, "svg")) },
+            ),
+        ) { dialog = null }
         is ScreenDialog.Number -> TextInputDialog(
             title = d.title, initial = d.initial, keyboardType = KeyboardType.Decimal,
             onDismiss = { dialog = null },
@@ -227,6 +350,8 @@ sealed interface ScreenDialog {
     data object RenameProject : ScreenDialog
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
+    data object Share : ScreenDialog
+    data object Export : ScreenDialog
     class Number(val title: String, val initial: String, val onValue: (Double) -> Unit) : ScreenDialog
     class Text(val title: String, val initial: String, val onValue: (String) -> Unit) : ScreenDialog
 }
@@ -238,6 +363,27 @@ private fun androidx.compose.foundation.layout.RowScope.ToolItem(vm: PlanViewMod
         onClick = { vm.selectTool(tool) },
         icon = { Icon(icon, null) },
         label = { Text(stringResource(label)) },
+    )
+}
+
+/** A dialog with one row per option; picking a row runs it and closes the dialog. */
+@Composable
+fun ChoiceDialog(title: String, options: List<Pair<String, () -> Unit>>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                for ((label, action) in options) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.fillMaxWidth().clickable { onDismiss(); action() }.padding(vertical = 14.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }
 
@@ -273,17 +419,7 @@ fun TextInputDialog(
 fun fmt(v: Double, decimals: Int = 2): String = String.format(Locale.getDefault(), "%.${decimals}f", v)
 
 /** Accepts Latin, Persian and Arabic digits and either decimal separator. */
-fun parseNumber(text: String): Double? {
-    val normalized = text.trim().map { ch ->
-        when (ch) {
-            in '۰'..'۹' -> '0' + (ch - '۰')
-            in '٠'..'٩' -> '0' + (ch - '٠')
-            '٫', ',' -> '.'
-            else -> ch
-        }
-    }.joinToString("")
-    return normalized.toDoubleOrNull()
-}
+fun parseNumber(text: String): Double? = Units.normalizeDigits(text).trim().toDoubleOrNull()
 
 @Composable
 fun LabeledRow(label: String, content: @Composable () -> Unit) {

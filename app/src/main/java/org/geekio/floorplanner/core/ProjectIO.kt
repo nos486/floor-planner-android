@@ -30,6 +30,9 @@ object ProjectIO {
                 doors = p.doors.filter { it.wallId in wallIds },
                 windows = p.windows.filter { it.wallId in wallIds },
                 rooms = p.rooms.filter { it.centroid.size >= 2 },
+                items = p.items.filter { it.width > 0 && it.depth > 0 },
+                labels = p.labels.filter { it.text.isNotBlank() && it.size > 0 },
+                dimensions = p.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
             )
         )
     } catch (e: Exception) {
@@ -41,14 +44,47 @@ object ProjectIO {
         return "${base.ifEmpty { "floor_plan" }}.$ext"
     }
 
-    private val roomColors = listOf("#4f8cff", "#36b37e", "#ffab00", "#ff5630", "#6554c0", "#00b8d9")
 
     private fun n(v: Double) = String.format(Locale.US, "%.1f", v)
 
     private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
-    fun toSvg(p: Project): String {
-        val pts = p.walls.flatMap { listOf(it.a, it.b) }
+    private fun svgPrim(prim: Prim): String = when (prim) {
+        is Prim.Rect -> {
+            val fill = if (prim.fill) " fill=\"#eceff3\"" else ""
+            """<rect x="${n(prim.x)}" y="${n(prim.y)}" width="${n(prim.w)}" height="${n(prim.h)}" rx="${n(prim.r)}"$fill/>"""
+        }
+        is Prim.Circle -> {
+            val fill = if (prim.fill) " fill=\"#eceff3\"" else ""
+            """<circle cx="${n(prim.cx)}" cy="${n(prim.cy)}" r="${n(prim.r)}"$fill/>"""
+        }
+        is Prim.Line -> """<line x1="${n(prim.x1)}" y1="${n(prim.y1)}" x2="${n(prim.x2)}" y2="${n(prim.y2)}" stroke-linecap="round"/>"""
+    }
+
+    private fun svgDimension(g: DimensionGeometry, upm: Double, u: UnitSystem): String {
+        val c = "#374151"
+        val dir = (g.end - g.start).normalized()
+        val tick = (dir + g.normal) * 6.0
+        val sb = StringBuilder("""<g stroke="$c" stroke-width="1">""")
+        fun line(a: P, b: P) = sb.append("""<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}"/>""")
+        val over = g.normal * (6.0 * g.side)
+        line(g.fromA, g.start + over)
+        line(g.fromB, g.end + over)
+        line(g.start, g.end)
+        line(g.start - tick, g.start + tick)
+        line(g.end - tick, g.end + tick)
+        val label = esc(Units.lengthShort(g.start.dist(g.end) / upm, u, Locale.US))
+        val m = g.labelAt(9.0)
+        sb.append("""<text x="${n(m.x)}" y="${n(m.y)}" font-size="12" fill="$c" stroke="none" text-anchor="middle" dominant-baseline="middle">$label</text>""")
+        sb.append("</g>")
+        return sb.toString()
+    }
+
+    /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
+    fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
+
+    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC): String {
+        val pts = extentPoints(p)
         val margin = 100.0
         val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
         val minY = (pts.minOfOrNull { it.y } ?: 0.0) - margin
@@ -63,7 +99,23 @@ object ProjectIO {
 
         p.rooms.forEachIndexed { i, r ->
             val poly = r.polygon.joinToString(" ") { "${n(it.x)},${n(it.y)}" }
-            sb.append("""<polygon points="$poly" fill="${roomColors[i % roomColors.size]}" fill-opacity="0.15"/>""").append('\n')
+            val opacity = if (r.color != null) "0.6" else "0.15"
+            sb.append("""<polygon points="$poly" fill="${FloorPatterns.colorFor(r.color, i)}" fill-opacity="$opacity"/>""").append('\n')
+            if (r.floor != null && r.polygon.size >= 3) {
+                val min = P(r.polygon.minOf { it.x }, r.polygon.minOf { it.y })
+                val max = P(r.polygon.maxOf { it.x }, r.polygon.maxOf { it.y })
+                sb.append("""<clipPath id="clip$i"><polygon points="$poly"/></clipPath>""").append('\n')
+                sb.append("""<g clip-path="url(#clip$i)" stroke="#2b2f36" stroke-opacity="0.22" stroke-width="1">""")
+                for ((a, b) in FloorPatterns.lines(r.floor, min, max)) {
+                    sb.append("""<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}"/>""")
+                }
+                sb.append("</g>\n")
+            }
+        }
+        for (item in p.items) {
+            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="#4b5563" stroke-width="1.5" fill="none">""").append('\n')
+            for (prim in Furniture.shapes(item)) sb.append(svgPrim(prim)).append('\n')
+            sb.append("</g>\n")
         }
         for (wall in p.walls) {
             sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
@@ -90,13 +142,24 @@ object ProjectIO {
             if (wall.length < 40) continue
             val mid = (wall.a + wall.b) * 0.5
             val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
-            val label = String.format(Locale.US, "%.2f m", wall.length / upm)
+            val label = esc(Units.length(wall.length / upm, units, Locale.US))
             sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
+        }
+        for (g in Dimensions.overall(p, 50.0) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
+            sb.append(svgDimension(g, upm, units)).append('\n')
+        }
+        for (l in p.labels) {
+            l.tip?.let { tip ->
+                val (h1, h2) = PlanOps.arrowHead(l.anchor, tip, l.size * 0.6)
+                sb.append("""<line x1="${n(l.x)}" y1="${n(l.y)}" x2="${n(tip.x)}" y2="${n(tip.y)}" stroke="#1f2937" stroke-width="${n(l.size * 0.08)}"/>""")
+                sb.append("""<polygon points="${n(tip.x)},${n(tip.y)} ${n(h1.x)},${n(h1.y)} ${n(h2.x)},${n(h2.y)}" fill="#1f2937"/>""").append('\n')
+            }
+            sb.append("""<text x="${n(l.x)}" y="${n(l.y)}" font-size="${n(l.size)}" fill="#1f2937" stroke="#ffffff" stroke-width="${n(l.size * 0.15)}" paint-order="stroke" text-anchor="middle" dominant-baseline="middle">${esc(l.text)}</text>""").append('\n')
         }
         for (r in p.rooms) {
             val c = r.center ?: continue
             sb.append("""<text x="${n(c.x)}" y="${n(c.y - 8)}" font-size="16" font-weight="bold" fill="#1f2937" text-anchor="middle">${esc(r.name)}</text>""").append('\n')
-            sb.append("""<text x="${n(c.x)}" y="${n(c.y + 12)}" font-size="13" fill="#4b5563" text-anchor="middle">${String.format(Locale.US, "%.2f m²", r.areaM2)}</text>""").append('\n')
+            sb.append("""<text x="${n(c.x)}" y="${n(c.y + 12)}" font-size="13" fill="#4b5563" text-anchor="middle">${Units.area(r.areaM2, units, Locale.US)}</text>""").append('\n')
         }
         sb.append("</svg>\n")
         return sb.toString()

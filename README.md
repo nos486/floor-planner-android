@@ -5,17 +5,28 @@ Draw walls with your finger, add doors and windows, and see the area of every ro
 
 ## Features
 
+- **Projects**: a start screen lists every saved plan with a preview. Create, rename, duplicate or delete them,
+  and start from an empty plan or a ready-made studio, one-, two- or three-bedroom apartment.
 - **Walls**: drag on the grid to draw a wall. Ends snap to other walls, to the grid and to 0°/45°/90° angles, with a live length tag.
 - **Doors and windows**: tap (or drag along) a wall to place one. Doors show their swing arc; flip the swing side or the hinge from the panel.
+- **Furniture**: 25 items (sofas, beds, tables, kitchen and bathroom fixtures) from the Add sheet. Drag them around,
+  turn them with the rotation handle, resize them; they snap their back against nearby walls.
 - **Select & edit**: tap anything to select it, then drag it.
   - Drag a wall to move it; walls joined to it follow.
   - Drag the round handles at the ends of a selected wall to reshape the plan.
   - Slide doors and windows along their wall.
   - Set an exact wall length, thickness, opening width, or split a wall in half from the bottom panel.
-- **Rooms**: closed areas are detected automatically, with their area in m² and a total for the whole plan. Tap a room to rename it.
+  - "Select several" picks things by tapping or with a box, then moves, duplicates, rotates, mirrors or deletes them together.
+- **Rooms**: closed areas are detected automatically, with their area and a total for the whole plan.
+  Tap a room to rename it and give it a colour and a floor (parquet, tiles, stone, carpet).
+- **Dimensions and notes**: overall width and height around the plan, a Measure tool for your own dimension lines,
+  and a Text tool for notes with optional arrows.
+- **Units**: metres or feet and inches.
 - **Navigation**: two fingers to pan and pinch-zoom (one finger also pans in Select mode when not on a wall), plus "fit to screen".
-- **Undo / redo**, and the plan is saved automatically.
-- **Files**: open and save projects as JSON (same format as the web app, so files move between the two), and export the plan as an SVG image.
+- **Undo / redo**, and every project is saved automatically.
+- **Files**: open and save projects as JSON (same format as the web app, so files move between the two; the extra
+  furniture, labels and dimensions are optional fields), export the plan as PNG, PDF (A4 with a room schedule and
+  scale bar) or SVG, or share the image or PDF straight to another app.
 - Light and dark theme, English and Persian.
 
 ## Build

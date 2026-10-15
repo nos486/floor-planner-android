@@ -1,25 +1,39 @@
 Floor Planner is a simple, practical way to sketch the plan of a home, an apartment or a single room on your phone.
 
-Draw walls with your finger and the app finds the rooms for you, showing the area of each room in square meters and the total area of the plan.
+Draw walls with your finger and the app finds the rooms for you, showing the area of each room and the total area of the plan.
 
 DRAW
 • Drag to draw walls. Ends snap to other walls, to the grid and to 45° angles
 • See the length of every wall while you draw
 • Add doors (with their swing) and windows by tapping on a wall
+• Start from an empty plan or a ready-made studio, one-, two- or three-bedroom apartment
+
+FURNISH
+• 25 pieces of furniture and fixtures: sofas, beds, tables, wardrobes, kitchen and bathroom
+• Move, rotate and resize them; they snap against the walls
+• Give each room a colour and a floor: parquet, tiles, stone or carpet
 
 EDIT
 • Move walls and corners; joined walls follow
 • Set an exact wall length, wall thickness, door or window width
+• Select several things at once to move, copy, rotate, mirror or delete them
 • Split walls, flip doors, rename rooms
 • Undo and redo
 
+MEASURE AND NOTE
+• Overall width and height around the plan
+• Measure tool for your own dimension lines
+• Text notes with arrows
+• Metres or feet and inches
+
 ROOMS AND AREA
 • Rooms are detected automatically
-• Area of each room and total area in m²
+• Area of each room and total area
 
 SAVE AND SHARE
-• Your plan is saved automatically
+• Keep as many projects as you like; each one is saved automatically
+• Export as PNG, PDF (with a room schedule and scale bar) or SVG
+• Share the image or PDF straight to any app
 • Open and save projects as JSON files
-• Export the plan as an SVG image
 
 No account, no ads and no internet connection needed. Your plans stay on your device.
