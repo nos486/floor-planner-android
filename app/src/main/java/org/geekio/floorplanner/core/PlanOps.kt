@@ -1,6 +1,7 @@
 package org.geekio.floorplanner.core
 
 import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Item
 import org.geekio.floorplanner.model.Opening
 import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
@@ -21,7 +22,7 @@ data class OpeningGeometry(
 /** Door swing drawing data: the leaf goes from [hinge] to [leafEnd], the arc from [strike] to [leafEnd]. */
 data class DoorSwing(val hinge: P, val strike: P, val leafEnd: P, val radius: Double, val clockwise: Boolean)
 
-enum class Kind { WALL, DOOR, WINDOW, ROOM }
+enum class Kind { WALL, DOOR, WINDOW, ROOM, ITEM }
 
 data class Selection(val kind: Kind, val id: String)
 
@@ -147,7 +148,26 @@ object PlanOps {
     fun renameRoom(p: Project, id: String, name: String) =
         p.copy(rooms = p.rooms.map { if (it.id == id) it.copy(name = name.trim().ifEmpty { it.name }) else it })
 
+    fun addItem(p: Project, item: Item): Project = p.copy(items = p.items + item)
+
+    fun updateItem(p: Project, id: String, f: (Item) -> Item) = p.copy(items = p.items.map { if (it.id == id) f(it) else it })
+
+    fun setItemSize(p: Project, id: String, width: Double, depth: Double) =
+        updateItem(p, id) { it.copy(width = width.coerceIn(10.0, 1000.0), depth = depth.coerceIn(10.0, 1000.0)) }
+
+    fun rotateItem(p: Project, id: String, degrees: Double) =
+        updateItem(p, id) { it.copy(rotation = Furniture.normalizeAngle(it.rotation + degrees)) }
+
+    /** Copies an item next to the original. Returns the new project and the copy. */
+    fun duplicateItem(p: Project, id: String): Pair<Project, Item>? {
+        val item = p.item(id) ?: return null
+        val shift = Furniture.toWorld(item.copy(x = 0.0, y = 0.0), P(item.width + 20, 0.0))
+        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1))
+        return p.copy(items = p.items + copy) to copy
+    }
+
     fun delete(p: Project, sel: Selection): Project = when (sel.kind) {
+        Kind.ITEM -> p.copy(items = p.items.filter { it.id != sel.id })
         Kind.WALL -> deleteWall(p, sel.id)
         Kind.DOOR -> p.copy(doors = p.doors.filter { it.id != sel.id })
         Kind.WINDOW -> p.copy(windows = p.windows.filter { it.id != sel.id })
@@ -198,11 +218,16 @@ object PlanOps {
             .filter { (w, d) -> d <= w.thickness / 2 + tolerance }
             .minByOrNull { it.second }?.first
 
+    /** Topmost item under [point] (items drawn last win). */
+    fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
+        p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }
 
     fun hit(p: Project, point: P, tolerance: Double): Selection? =
         hitOpening(p, point, tolerance)
+            ?: hitItem(p, point)?.let { Selection(Kind.ITEM, it.id) }
             ?: hitWall(p, point, tolerance)?.let { Selection(Kind.WALL, it.id) }
             ?: hitRoom(p, point)?.let { Selection(Kind.ROOM, it.id) }
 }

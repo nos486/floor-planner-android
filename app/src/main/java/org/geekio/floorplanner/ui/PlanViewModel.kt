@@ -9,6 +9,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Furniture
+import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
@@ -16,6 +18,7 @@ import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapOptions
 import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
@@ -109,6 +112,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 Kind.DOOR -> project.door(sel.id) != null
                 Kind.WINDOW -> project.window(sel.id) != null
                 Kind.ROOM -> project.room(sel.id) != null
+                Kind.ITEM -> project.item(sel.id) != null
             }
             if (!exists) selection = null
         }
@@ -218,6 +222,45 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun renameRoom(id: String, name: String) = commit(PlanOps.renameRoom(project, id, name))
 
+    // ---------------- Furniture ----------------
+
+    /** Adds a [type] item in the middle of the screen (against a wall if one is close) and selects it. */
+    fun addFurniture(type: FurnitureType) {
+        val center = toWorld(Offset(viewSize.width / 2f, viewSize.height / 2f)).let {
+            if (settings.snap.grid) Snapper.snapToGrid(it, gridSize) else it
+        }
+        var item = Furniture.create(type, center)
+        if (settings.snap.endpoints) Furniture.snapToWall(item, center, project.walls, worldTol(WALL_SNAP_DP))?.let { item = it }
+        commit(PlanOps.addItem(project, item))
+        tool = Tool.SELECT
+        draft = null
+        selection = Selection(Kind.ITEM, item.id)
+    }
+
+    fun rotateItem(id: String, degrees: Double) = commit(PlanOps.rotateItem(project, id, degrees))
+
+    fun setItemRotation(id: String, degrees: Double) =
+        commit(PlanOps.updateItem(project, id) { it.copy(rotation = Furniture.normalizeAngle(degrees)) })
+
+    fun setItemSize(id: String, width: Double, depth: Double) = commit(PlanOps.setItemSize(project, id, width, depth))
+
+    fun duplicateItem(id: String) {
+        val (p, copy) = PlanOps.duplicateItem(project, id) ?: return
+        commit(p)
+        selection = Selection(Kind.ITEM, copy.id)
+    }
+
+    /** Screen position of the rotation handle of a selected item. */
+    fun itemRotateHandle(id: String): Offset? {
+        val item = project.item(id) ?: return null
+        val front = toScreen(Furniture.toWorld(item, P(0.0, item.depth / 2)))
+        val center = toScreen(P(item.x, item.y))
+        val dir = front - center
+        val len = dir.getDistance()
+        if (len < 0.001f) return null
+        return front + dir / len * (ROTATE_HANDLE_OFFSET_DP * density)
+    }
+
     // ---------------- Viewport ----------------
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
@@ -235,7 +278,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun fitToScreen() {
         if (viewSize.width == 0 || viewSize.height == 0) return
         fittedOnce = true
-        val pts = project.walls.flatMap { listOf(it.a, it.b) }
+        val pts = ProjectIO.extentPoints(project)
         val w = viewSize.width.toFloat()
         val h = viewSize.height.toFloat()
         if (pts.isEmpty()) {
@@ -271,6 +314,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class MoveVertex(val origin: Project, val from: P) : DragOp
         data class MoveWall(val origin: Project, val wallId: String, val startWorld: P) : DragOp
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
+        data class MoveItem(val origin: Project, val id: String, val grab: P) : DragOp
+        data class RotateItem(val origin: Project, val id: String) : DragOp
     }
 
     private var dragOp: DragOp? = null
@@ -310,8 +355,14 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun selectDragStart(screen: Offset, w: P): DragOp {
         val tol = worldTol(HIT_DP)
-        // Endpoint handles of the selected wall.
+        // Endpoint handles of the selected wall, rotation handle of the selected item.
         val sel = selection
+        if (sel?.kind == Kind.ITEM) {
+            val handle = itemRotateHandle(sel.id)
+            if (handle != null && (handle - screen).getDistance() <= HANDLE_DP * density) {
+                return DragOp.RotateItem(project, sel.id)
+            }
+        }
         if (sel?.kind == Kind.WALL) {
             project.wall(sel.id)?.let { wall ->
                 val handleTol = worldTol(HANDLE_DP)
@@ -328,6 +379,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val along = (w - wall.a).dot((wall.b - wall.a).normalized())
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
+        }
+        PlanOps.hitItem(project, w)?.let { item ->
+            selection = Selection(Kind.ITEM, item.id)
+            return DragOp.MoveItem(project, item.id, P(item.x, item.y) - w)
         }
         PlanOps.hitWall(project, w, tol)?.let { wall ->
             selection = Selection(Kind.WALL, wall.id)
@@ -368,6 +423,21 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 project = if (op.kind == Kind.DOOR) PlanOps.updateDoor(op.origin, op.id) { it.copy(offset = rounded) }
                 else PlanOps.updateWindow(op.origin, op.id) { it.copy(offset = rounded) }
             }
+            is DragOp.MoveItem -> {
+                val item = op.origin.item(op.id) ?: return
+                val raw = w + op.grab
+                val center = if (settings.snap.grid) Snapper.snapToGrid(raw, ITEM_GRID) else raw
+                val moved = (if (settings.snap.endpoints) Furniture.snapToWall(item, raw, op.origin.walls, worldTol(WALL_SNAP_DP)) else null)
+                    ?: item.copy(x = roundTo(center.x, 1), y = roundTo(center.y, 1))
+                project = PlanOps.updateItem(op.origin, op.id) { moved }
+            }
+            is DragOp.RotateItem -> {
+                val item = op.origin.item(op.id) ?: return
+                // The handle sits in front of the item (local +y), so the angle of the finger is rotation + 90.
+                val deg = Math.toDegrees(kotlin.math.atan2(w.y - item.y, w.x - item.x)) - 90
+                val snapped = if (settings.snap.angles) Math.round(deg / 15) * 15.0 else deg
+                project = PlanOps.updateItem(op.origin, op.id) { it.copy(rotation = Furniture.normalizeAngle(snapped)) }
+            }
             null -> Unit
         }
     }
@@ -385,6 +455,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveVertex -> commit(project, before = op.origin)
             is DragOp.MoveWall -> commit(project, before = op.origin)
             is DragOp.SlideOpening -> commit(project, before = op.origin)
+            is DragOp.MoveItem -> commit(project, before = op.origin)
+            is DragOp.RotateItem -> commit(project, before = op.origin)
             is DragOp.Pan, null -> Unit
         }
         dragOp = null
@@ -395,6 +467,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveVertex -> project = op.origin
             is DragOp.MoveWall -> project = op.origin
             is DragOp.SlideOpening -> project = op.origin
+            is DragOp.MoveItem -> project = op.origin
+            is DragOp.RotateItem -> project = op.origin
             else -> Unit
         }
         draft = null
@@ -428,5 +502,9 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         private const val HANDLE_DP = 24f
         private const val SNAP_RADIUS_DP = 18f
         private const val OPENING_HIT_DP = 30f
+        private const val WALL_SNAP_DP = 16f
+        const val ROTATE_HANDLE_OFFSET_DP = 28f
+        /** Furniture moves in 5 cm steps when grid snapping is on. */
+        private const val ITEM_GRID = 5.0
     }
 }

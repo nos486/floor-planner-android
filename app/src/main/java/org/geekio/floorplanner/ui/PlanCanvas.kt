@@ -25,6 +25,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
@@ -53,6 +54,8 @@ private data class PlanColors(
     val label: Color,
     val labelBg: Color,
     val dim: Color,
+    val itemFill: Color,
+    val itemStroke: Color,
 )
 
 @Composable
@@ -68,6 +71,8 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         label = cs.onSurface,
         labelBg = cs.surface.copy(alpha = 0.8f),
         dim = cs.onSurfaceVariant,
+        itemFill = cs.surfaceContainerHighest,
+        itemStroke = cs.onSurface.copy(alpha = 0.7f),
     )
     val textMeasurer = rememberTextMeasurer()
     vm.density = LocalDensity.current.density
@@ -101,6 +106,17 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                 }
                 val isSel = sel?.kind == Kind.ROOM && sel.id == room.id
                 drawPath(path, roomPalette[i % roomPalette.size].copy(alpha = if (isSel) 0.35f else 0.15f))
+            }
+
+            // Furniture
+            for (item in project.items) {
+                val isSel = sel?.kind == Kind.ITEM && sel.id == item.id
+                drawItem(
+                    item,
+                    if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
+                    if (isSel) colors.selected else colors.itemStroke,
+                    maxOf(1.2f, 1.5f * px),
+                )
             }
 
             // Walls
@@ -149,6 +165,30 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                 drawCircle(colors.selected, 12.dp.toPx(), vm.toScreen(d.b), style = Stroke(2.dp.toPx()))
             }
             drawCircle(colors.selected, 6.dp.toPx(), vm.toScreen(d.b))
+        }
+
+        // Outline and rotation handle of the selected item
+        if (sel?.kind == Kind.ITEM) {
+            project.item(sel.id)?.let { item ->
+                val corners = Furniture.corners(item).map { vm.toScreen(it) }
+                val outline = Path().apply {
+                    moveTo(corners[0].x, corners[0].y)
+                    corners.drop(1).forEach { lineTo(it.x, it.y) }
+                    close()
+                }
+                drawPath(outline, colors.selected, style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))))
+                vm.itemRotateHandle(item.id)?.let { h ->
+                    val front = vm.toScreen(Furniture.toWorld(item, P(0.0, item.depth / 2)))
+                    drawLine(colors.selected, front, h, 2.dp.toPx())
+                    drawCircle(colors.background, 11.dp.toPx(), h)
+                    drawCircle(colors.selected, 11.dp.toPx(), h, style = Stroke(3.dp.toPx()))
+                    drawArc(
+                        colors.selected, -60f, 240f, useCenter = false,
+                        topLeft = h - Offset(5.dp.toPx(), 5.dp.toPx()), size = Size(10.dp.toPx(), 10.dp.toPx()),
+                        style = Stroke(2.dp.toPx()),
+                    )
+                }
+            }
         }
 
         // Endpoint handles of the selected wall

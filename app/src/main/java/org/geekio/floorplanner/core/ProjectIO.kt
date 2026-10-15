@@ -30,6 +30,7 @@ object ProjectIO {
                 doors = p.doors.filter { it.wallId in wallIds },
                 windows = p.windows.filter { it.wallId in wallIds },
                 rooms = p.rooms.filter { it.centroid.size >= 2 },
+                items = p.items.filter { it.width > 0 && it.depth > 0 },
             )
         )
     } catch (e: Exception) {
@@ -47,8 +48,23 @@ object ProjectIO {
 
     private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
+    private fun svgPrim(prim: Prim): String = when (prim) {
+        is Prim.Rect -> {
+            val fill = if (prim.fill) " fill=\"#eceff3\"" else ""
+            """<rect x="${n(prim.x)}" y="${n(prim.y)}" width="${n(prim.w)}" height="${n(prim.h)}" rx="${n(prim.r)}"$fill/>"""
+        }
+        is Prim.Circle -> {
+            val fill = if (prim.fill) " fill=\"#eceff3\"" else ""
+            """<circle cx="${n(prim.cx)}" cy="${n(prim.cy)}" r="${n(prim.r)}"$fill/>"""
+        }
+        is Prim.Line -> """<line x1="${n(prim.x1)}" y1="${n(prim.y1)}" x2="${n(prim.x2)}" y2="${n(prim.y2)}" stroke-linecap="round"/>"""
+    }
+
+    /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
+    fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
+
     fun toSvg(p: Project): String {
-        val pts = p.walls.flatMap { listOf(it.a, it.b) }
+        val pts = extentPoints(p)
         val margin = 100.0
         val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
         val minY = (pts.minOfOrNull { it.y } ?: 0.0) - margin
@@ -64,6 +80,11 @@ object ProjectIO {
         p.rooms.forEachIndexed { i, r ->
             val poly = r.polygon.joinToString(" ") { "${n(it.x)},${n(it.y)}" }
             sb.append("""<polygon points="$poly" fill="${roomColors[i % roomColors.size]}" fill-opacity="0.15"/>""").append('\n')
+        }
+        for (item in p.items) {
+            sb.append("""<g transform="translate(${n(item.x)} ${n(item.y)}) rotate(${n(item.rotation)})" stroke="#4b5563" stroke-width="1.5" fill="none">""").append('\n')
+            for (prim in Furniture.shapes(item)) sb.append(svgPrim(prim)).append('\n')
+            sb.append("</g>\n")
         }
         for (wall in p.walls) {
             sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')

@@ -11,10 +11,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Rotate90DegreesCcw
+import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
@@ -88,6 +91,26 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             title = stringResource(R.string.window)
             body = {
                 Stepper(stringResource(R.string.width), win.width, 10.0, 30.0, 1000.0) { vm.setOpeningWidth(Kind.WINDOW, win.id, it) }
+            }
+        }
+        Kind.ITEM -> {
+            val item = p.item(sel.id) ?: return
+            title = stringResource(furnitureName(item.type))
+            val angleTitle = stringResource(R.string.rotation_deg)
+            body = {
+                Stepper(stringResource(R.string.width), item.width, 5.0, 10.0, 1000.0) { vm.setItemSize(item.id, it, item.depth) }
+                Stepper(stringResource(R.string.depth), item.depth, 5.0, 10.0, 1000.0) { vm.setItemSize(item.id, item.width, it) }
+                LabeledRow(stringResource(R.string.rotation)) {
+                    IconButton(onClick = { vm.rotateItem(item.id, -90.0) }) { Icon(Icons.Filled.Rotate90DegreesCcw, null) }
+                    TextButton(onClick = {
+                        openDialog(ScreenDialog.Number(angleTitle, fmtPlain(item.rotation)) { vm.setItemRotation(item.id, it) })
+                    }) { Text(fmt(item.rotation, 0) + "°") }
+                    IconButton(onClick = { vm.rotateItem(item.id, 90.0) }) { Icon(Icons.Filled.Rotate90DegreesCw, null) }
+                }
+                OutlinedButton(onClick = { vm.duplicateItem(item.id) }) {
+                    Icon(Icons.Filled.ContentCopy, null)
+                    Text(stringResource(R.string.duplicate), Modifier.padding(start = 8.dp))
+                }
             }
         }
         Kind.ROOM -> {

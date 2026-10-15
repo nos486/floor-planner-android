@@ -15,11 +15,13 @@ data class Project(
     val doors: List<Door> = emptyList(),
     val windows: List<PlanWindow> = emptyList(),
     val rooms: List<Room> = emptyList(),
+    val items: List<Item> = emptyList(),
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
     fun window(id: String) = windows.firstOrNull { it.id == id }
     fun room(id: String) = rooms.firstOrNull { it.id == id }
+    fun item(id: String) = items.firstOrNull { it.id == id }
 
     val totalAreaM2: Double get() = rooms.sumOf { it.areaM2 }
 }
@@ -87,3 +89,15 @@ data class Room(
     val polygon: List<P> get() = points.map { P.of(it) }
     val center: P? get() = if (centroid.size >= 2) P.of(centroid) else null
 }
+
+/** A piece of furniture or fixture: [type] is a key of the furniture catalog, ([x], [y]) its centre, [rotation] in degrees. */
+@Serializable
+data class Item(
+    val id: String,
+    val type: String,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val depth: Double,
+    val rotation: Double = 0.0,
+)

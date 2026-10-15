@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Chair
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.MoreVert
@@ -73,6 +74,7 @@ fun PlanScreen(vm: PlanViewModel) {
     val snackbar = remember { SnackbarHostState() }
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<ScreenDialog?>(null) }
+    var addOpen by remember { mutableStateOf(false) }
 
     vm.message?.let { msgRes ->
         val text = stringResource(msgRes)
@@ -178,6 +180,12 @@ fun PlanScreen(vm: PlanViewModel) {
                     ToolItem(vm, Tool.WALL, Icons.Filled.Timeline, R.string.tool_wall)
                     ToolItem(vm, Tool.DOOR, Icons.Filled.DoorFront, R.string.tool_door)
                     ToolItem(vm, Tool.WINDOW, Icons.Filled.Window, R.string.tool_window)
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { addOpen = true },
+                        icon = { Icon(Icons.Filled.Chair, null) },
+                        label = { Text(stringResource(R.string.tool_add)) },
+                    )
                 }
             }
         },
@@ -195,6 +203,8 @@ fun PlanScreen(vm: PlanViewModel) {
             }
         }
     }
+
+    if (addOpen) AddSheet(vm) { addOpen = false }
 
     when (val d = dialog) {
         ScreenDialog.RenameProject -> TextInputDialog(
