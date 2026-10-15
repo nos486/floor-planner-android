@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Chair
@@ -110,16 +111,21 @@ fun PlanScreen(vm: PlanViewModel) {
             val text = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() } }.getOrNull()
             }
-            if (!vm.loadJson(text)) vm.message = R.string.msg_open_failed
+            if (!vm.importJson(text)) vm.message = R.string.msg_open_failed
         }
     }
 
-    BackHandler(enabled = vm.selection != null) { vm.clearSelection() }
+    BackHandler { if (vm.selection != null) vm.clearSelection() else vm.closeProject() }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = vm::closeProject) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.my_projects))
+                    }
+                },
                 title = {
                     Column(Modifier.clickable { dialog = ScreenDialog.RenameProject }) {
                         Text(vm.project.projectName, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -145,6 +151,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             Icon(Icons.Filled.MoreVert, stringResource(R.string.more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.my_projects)) }, onClick = {
+                                menuOpen = false; vm.closeProject()
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.new_project)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.NewProject
                             })
@@ -213,11 +222,10 @@ fun PlanScreen(vm: PlanViewModel) {
             title = stringResource(R.string.project_name), initial = vm.project.projectName,
             onDismiss = { dialog = null }, onConfirm = { vm.renameProject(it); dialog = null },
         )
-        ScreenDialog.NewProject -> TextInputDialog(
-            title = stringResource(R.string.new_project), initial = stringResource(R.string.default_project_name),
-            message = stringResource(R.string.new_project_warning),
-            onDismiss = { dialog = null }, onConfirm = { vm.newProject(it); dialog = null },
-        )
+        ScreenDialog.NewProject -> NewProjectDialog(onDismiss = { dialog = null }) { p ->
+            dialog = null
+            vm.createProject(p.copy(scale = vm.project.scale))
+        }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         is ScreenDialog.Number -> TextInputDialog(
             title = d.title, initial = d.initial, keyboardType = KeyboardType.Decimal,

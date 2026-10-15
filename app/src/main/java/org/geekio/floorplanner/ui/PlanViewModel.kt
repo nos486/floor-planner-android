@@ -15,10 +15,13 @@ import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
+import org.geekio.floorplanner.core.ProjectEntry
 import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.ProjectStore
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapOptions
 import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.generateId
 import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
 import org.geekio.floorplanner.model.Project
@@ -50,7 +53,15 @@ data class Settings(
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
     // Null when there is no app storage (screenshot tests).
-    private val autosaveFile: File? = runCatching { File(app.filesDir, "autosave.json") }.getOrNull()
+    private val filesDir: File? = runCatching { app.filesDir }.getOrNull()
+    private val store: ProjectStore? = filesDir?.let { ProjectStore(File(it, "projects")) }
+
+    /** Id of the open project, null while the start screen is shown. */
+    var currentId by mutableStateOf<String?>(null)
+        private set
+    /** Saved projects for the start screen, newest first. */
+    var projects by mutableStateOf<List<ProjectEntry>>(emptyList())
+        private set
 
     var project by mutableStateOf(Project())
         private set
@@ -87,11 +98,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private var saveJob: Job? = null
 
     init {
-        autosaveFile?.takeIf { it.exists() }
-            ?.let { file -> runCatching { file.readText() }.getOrNull() }
-            ?.let { ProjectIO.fromJson(it) }
-            ?.let { project = it }
-        if (project.walls.isNotEmpty()) tool = Tool.SELECT
+        filesDir?.let { store?.migrateLegacy(File(it, "autosave.json")) }
+        refreshProjects()
     }
 
     // ---------------- History ----------------
@@ -138,37 +146,93 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun scheduleSave() {
-        val file = autosaveFile ?: return
+        val store = store ?: return
+        val id = currentId ?: return
         saveJob?.cancel()
         val snapshot = project
         saveJob = viewModelScope.launch {
             delay(400)
-            withContext(Dispatchers.IO) {
-                runCatching { file.writeText(ProjectIO.toJson(snapshot)) }
-            }
+            withContext(Dispatchers.IO) { store.save(id, snapshot) }
         }
+    }
+
+    /** Writes a pending autosave right away (when the app goes to the background or the project is closed). */
+    fun flushSave() {
+        val job = saveJob ?: return
+        if (!job.isActive) return
+        job.cancel()
+        currentId?.let { store?.save(it, project) }
+    }
+
+    // ---------------- Projects ----------------
+
+    fun refreshProjects() {
+        val store = store ?: return
+        viewModelScope.launch {
+            projects = withContext(Dispatchers.IO) { store.list() }
+        }
+    }
+
+    fun openProject(id: String) {
+        val loaded = store?.load(id) ?: run { message = R.string.msg_open_failed; refreshProjects(); return }
+        show(id, loaded)
+    }
+
+    /** Saves [p] as a new project and opens it. */
+    fun createProject(p: Project) {
+        val id = store?.create(p) ?: generateId("p")
+        show(id, PlanOps.withRooms(p))
+    }
+
+    private fun show(id: String, p: Project) {
+        saveJob?.cancel()
+        undoStack.clear()
+        redoStack.clear()
+        canUndo = false
+        canRedo = false
+        currentId = id
+        project = p
+        selection = null
+        draft = null
+        tool = if (p.walls.isEmpty()) Tool.WALL else Tool.SELECT
+        fittedOnce = false
+        fitToScreen()
+    }
+
+    /** Back to the start screen. */
+    fun closeProject() {
+        flushSave()
+        currentId = null
+        selection = null
+        refreshProjects()
+    }
+
+    fun deleteProject(id: String) {
+        store?.delete(id)
+        refreshProjects()
+    }
+
+    fun duplicateProject(id: String, name: String) {
+        store?.duplicate(id, name)
+        refreshProjects()
+    }
+
+    fun renameProjectEntry(id: String, name: String) {
+        store?.rename(id, name)
+        refreshProjects()
+    }
+
+    /** Imports a JSON project file as a new project; false when it isn't a floor plan. */
+    fun importJson(text: String?): Boolean {
+        val loaded = text?.let { ProjectIO.fromJson(it) } ?: return false
+        createProject(loaded)
+        return true
     }
 
     // ---------------- Project ----------------
 
-    fun newProject(name: String) {
-        commit(Project(projectName = name.trim().ifEmpty { "Floor Plan" }, scale = project.scale))
-        selection = null
-        tool = Tool.WALL
-        fitToScreen()
-    }
-
     fun renameProject(name: String) {
         commit(project.copy(projectName = name.trim().ifEmpty { project.projectName }))
-    }
-
-    fun loadJson(text: String?): Boolean {
-        val loaded = text?.let { ProjectIO.fromJson(it) } ?: return false
-        commit(loaded)
-        selection = null
-        tool = Tool.SELECT
-        fitToScreen()
-        return true
     }
 
     fun exportJson() = ProjectIO.toJson(project)
@@ -274,9 +338,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private fun worldTol(dp: Float) = (dp * density / zoom).toDouble()
 
     fun onViewSize(size: IntSize) {
-        val first = viewSize == IntSize.Zero
         viewSize = size
-        if (first && !fittedOnce) fitToScreen()
+        if (!fittedOnce) fitToScreen()
     }
 
     fun fitToScreen() {

@@ -10,7 +10,6 @@
     <string name="fit">Fit to screen</string>
     <string name="more">More</string>
     <string name="new_project">New project</string>
-    <string name="new_project_warning">The current plan will be cleared (you can still undo).</string>
     <string name="open_json">Open project (JSON)</string>
     <string name="save_json">Save project (JSON)</string>
     <string name="export_svg">Export image (SVG)</string>
@@ -96,4 +95,13 @@
     <string name="hint_measure">Drag between two points to measure</string>
     <string name="hint_move_dimension">Drag the line to move it away from the plan.</string>
     <string name="show_overall">Show overall dimensions</string>
+    <string name="my_projects">My projects</string>
+    <string name="no_projects">No projects yet</string>
+    <string name="no_projects_hint">Tap "New project" to draw your first floor plan.</string>
+    <string name="copy_suffix">(copy)</string>
+    <string name="rename">Rename</string>
+    <string name="create">Create</string>
+    <string name="delete_project">Delete project?</string>
+    <string name="delete_project_warning">"%1$s" will be deleted for good.</string>
+    <string name="area_value">%1$s m²</string>
 </resources>

@@ -10,7 +10,6 @@
     <string name="fit">نمایش کل نقشه</string>
     <string name="more">بیشتر</string>
     <string name="new_project">پروژه جدید</string>
-    <string name="new_project_warning">نقشه فعلی پاک می‌شود (با برگرداندن قابل بازیابی است).</string>
     <string name="open_json">باز کردن پروژه (JSON)</string>
     <string name="save_json">ذخیره پروژه (JSON)</string>
     <string name="export_svg">خروجی تصویر (SVG)</string>
@@ -96,4 +95,13 @@
     <string name="hint_measure">بین دو نقطه بکشید تا فاصله را ببینید</string>
     <string name="hint_move_dimension">خط را بکشید تا از نقشه فاصله بگیرد.</string>
     <string name="show_overall">نمایش ابعاد کلی</string>
+    <string name="my_projects">پروژه‌های من</string>
+    <string name="no_projects">هنوز پروژه‌ای ندارید</string>
+    <string name="no_projects_hint">برای کشیدن اولین نقشه روی «پروژه جدید» بزنید.</string>
+    <string name="copy_suffix">(کپی)</string>
+    <string name="rename">تغییر نام</string>
+    <string name="create">ساختن</string>
+    <string name="delete_project">پروژه حذف شود؟</string>
+    <string name="delete_project_warning">«%1$s» برای همیشه حذف می‌شود.</string>
+    <string name="area_value">%1$s متر مربع</string>
 </resources>
