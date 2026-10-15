@@ -208,4 +208,5 @@
     <string name="calibrate_title">Real length</string>
     <string name="calibrate_message">How long is the line you drew in reality?</string>
     <string name="msg_image_failed">Couldn\'t open this picture</string>
+    <string name="format_dxf">DXF (AutoCAD)</string>
 </resources>

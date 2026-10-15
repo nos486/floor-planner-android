@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Dxf
 import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.Units
@@ -111,6 +112,9 @@ fun PlanScreen(vm: PlanViewModel) {
 
     val saveJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
         write(it, vm.exportJson())
+    }
+    val saveDxf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/dxf")) {
+        write(it, Dxf.export(vm.shown, vm.settings.units, Layer.DIMENSIONS !in vm.settings.hiddenLayers))
     }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
         write(it, ProjectIO.toSvg(vm.shown, vm.settings.units, Layer.DIMENSIONS !in vm.settings.hiddenLayers))
@@ -380,6 +384,7 @@ fun PlanScreen(vm: PlanViewModel) {
                 stringResource(R.string.format_png) to { savePng.launch(ProjectIO.fileName(project, "png")) },
                 stringResource(R.string.format_pdf) to { savePdf.launch(ProjectIO.fileName(project, "pdf")) },
                 stringResource(R.string.format_svg) to { saveSvg.launch(ProjectIO.fileName(project, "svg")) },
+                stringResource(R.string.format_dxf) to { saveDxf.launch(ProjectIO.fileName(project, "dxf")) },
             ),
         ) { dialog = null }
         is ScreenDialog.Number -> TextInputDialog(

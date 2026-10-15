@@ -208,4 +208,5 @@
     <string name="calibrate_title">طول واقعی</string>
     <string name="calibrate_message">طول واقعی خطی که کشیدید چقدر است؟</string>
     <string name="msg_image_failed">این عکس باز نشد</string>
+    <string name="format_dxf">DXF (اتوکد)</string>
 </resources>
