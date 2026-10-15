@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -136,6 +137,7 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
     )
     val textMeasurer = rememberTextMeasurer()
     vm.density = LocalDensity.current.density
+    vm.xdpi = LocalContext.current.resources.displayMetrics.xdpi
 
     Canvas(
         modifier

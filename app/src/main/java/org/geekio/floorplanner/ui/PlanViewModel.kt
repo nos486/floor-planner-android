@@ -791,18 +791,18 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         pan = Offset(w / 2 - cx * zoom, h / 2 - cy * zoom)
     }
 
-    /** Zoom at which the plan shows at its real size on this screen. */
-    val trueScaleZoom: Float
-        get() {
-            val xdpi = getApplication<Application>().resources.displayMetrics.xdpi
-            return (xdpi / 2.54 * 100 / project.scale.unitsPerMeter).toFloat()
-        }
+    /** Physical pixels per inch across the screen, set by the canvas; 0 until known. */
+    var xdpi = 0f
 
-    val isTrueScale: Boolean get() = kotlin.math.abs(zoom / trueScaleZoom - 1) < 0.01f
+    /** Zoom at which the plan shows at its real size on this screen, null until the screen is known. */
+    val trueScaleZoom: Float?
+        get() = if (xdpi <= 0f) null else (xdpi / 2.54 * 100 / project.scale.unitsPerMeter).toFloat()
+
+    val isTrueScale: Boolean get() = trueScaleZoom?.let { kotlin.math.abs(zoom / it - 1) < 0.01f } ?: false
 
     /** Zooms around the middle of the view so 1 cm on the plan is 1 cm on the glass. */
     fun showTrueScale() {
-        val target = trueScaleZoom.coerceIn(MIN_ZOOM, MAX_ZOOM)
+        val target = (trueScaleZoom ?: return).coerceIn(MIN_ZOOM, MAX_ZOOM)
         val mid = Offset(viewSize.width / 2f, viewSize.height / 2f)
         pan = mid - (mid - pan) * (target / zoom)
         zoom = target
