@@ -292,4 +292,7 @@
     <string name="f_dryer">Dryer</string>
     <string name="f_vanity">Bathroom vanity</string>
     <string name="hint_hold_to_move">To move something, tap it first or hold your finger on it for a moment.</string>
+    <string name="lock_item">Lock in place</string>
+    <string name="unlock_item">Unlock</string>
+    <string name="hint_item_locked">This item is locked. Tap the lock to move it again.</string>
 </resources>

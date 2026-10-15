@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
@@ -44,8 +46,13 @@ fun SelectionBar(vm: PlanViewModel) {
     val actions = buildList<Triple<ImageVector, Int, () -> Unit>> {
         when (sel.kind) {
             Kind.ITEM -> {
-                add(Triple(Icons.Filled.Rotate90DegreesCw, R.string.rotate) { vm.rotateItem(sel.id, 90.0) })
+                val locked = vm.project.item(sel.id)?.locked == true
+                if (!locked) add(Triple(Icons.Filled.Rotate90DegreesCw, R.string.rotate) { vm.rotateItem(sel.id, 90.0) })
                 add(Triple(Icons.Filled.ContentCopy, R.string.duplicate) { vm.duplicateItem(sel.id) })
+                add(
+                    if (locked) Triple(Icons.Filled.Lock, R.string.unlock_item) { vm.toggleItemLock(sel.id) }
+                    else Triple(Icons.Filled.LockOpen, R.string.lock_item) { vm.toggleItemLock(sel.id) },
+                )
             }
             Kind.WALL -> add(Triple(Icons.Filled.ContentCut, R.string.split_wall) { vm.splitWall(sel.id) })
             Kind.DOOR -> {

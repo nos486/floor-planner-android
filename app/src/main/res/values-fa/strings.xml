@@ -292,4 +292,7 @@
     <string name="f_dryer">خشک‌کن</string>
     <string name="f_vanity">کابینت روشویی</string>
     <string name="hint_hold_to_move">برای جابجا کردن، اول روی آن بزنید یا انگشت را کمی روی آن نگه دارید.</string>
+    <string name="lock_item">قفل کردن</string>
+    <string name="unlock_item">باز کردن قفل</string>
+    <string name="hint_item_locked">این شیء قفل است. برای جابجا کردن، روی قفل بزنید.</string>
 </resources>

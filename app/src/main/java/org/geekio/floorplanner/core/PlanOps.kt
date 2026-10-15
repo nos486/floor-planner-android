@@ -185,7 +185,7 @@ object PlanOps {
     fun duplicateItem(p: Project, id: String): Pair<Project, Item>? {
         val item = p.item(id) ?: return null
         val shift = Furniture.toWorld(item.copy(x = 0.0, y = 0.0), P(item.width + 20, 0.0))
-        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1))
+        val copy = item.copy(id = generateId("it"), x = roundTo(item.x + shift.x, 1), y = roundTo(item.y + shift.y, 1), locked = false)
         return p.copy(items = p.items + copy) to copy
     }
 

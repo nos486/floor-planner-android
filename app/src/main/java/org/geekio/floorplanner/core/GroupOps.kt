@@ -79,7 +79,8 @@ object GroupOps {
             },
             doors = if (mirror) p.doors.map { if (it.wallId in walls) it.copy(side = -it.side) else it } else p.doors,
             items = p.items.map {
-                if (it.id !in items) it else {
+                // Locked items stay put even when the group around them moves.
+                if (it.id !in items || it.locked) it else {
                     val c = f(P(it.x, it.y)).rounded()
                     val rot = if (mirror) -it.rotation else it.rotation + turn
                     it.copy(x = c.x, y = c.y, rotation = Furniture.normalizeAngle(rot))
@@ -134,7 +135,7 @@ object GroupOps {
         val doors = p.doors.filter { it.wallId in wallIds }.map { it.copy(id = generateId("d"), wallId = newWallId.getValue(it.wallId)) }
         val windows = p.windows.filter { it.wallId in wallIds }.map { it.copy(id = generateId("win"), wallId = newWallId.getValue(it.wallId)) }
         val items = p.items.filter { it.id in ids(group, Kind.ITEM) }.map {
-            it.copy(id = generateId("it"), x = roundTo(it.x + shift.x, 1), y = roundTo(it.y + shift.y, 1))
+            it.copy(id = generateId("it"), x = roundTo(it.x + shift.x, 1), y = roundTo(it.y + shift.y, 1), locked = false)
         }
         val labels = p.labels.filter { it.id in ids(group, Kind.LABEL) }.map {
             val a = (it.anchor + shift).rounded()

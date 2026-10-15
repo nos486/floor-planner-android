@@ -204,6 +204,20 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             drawCircle(colors.selected, 6.dp.toPx(), vm.toScreen(d.b))
         }
 
+        // A small padlock on locked items
+        for (item in project.items) {
+            if (!item.locked) continue
+            val c = vm.toScreen(P(item.x, item.y))
+            val u = 4.dp.toPx()
+            drawCircle(colors.background.copy(alpha = 0.85f), u * 2.6f, c)
+            drawArc(
+                colors.itemStroke, 180f, 180f, useCenter = false,
+                topLeft = c + Offset(-u * 0.9f, -u * 1.9f), size = Size(u * 1.8f, u * 2f),
+                style = Stroke(u * 0.45f),
+            )
+            drawRect(colors.itemStroke, c + Offset(-u * 1.3f, -u * 0.6f), Size(u * 2.6f, u * 2f))
+        }
+
         // Outline and rotation handle of the selected item
         if (sel?.kind == Kind.ITEM) {
             project.item(sel.id)?.let { item ->

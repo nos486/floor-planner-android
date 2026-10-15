@@ -832,12 +832,29 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         selection = Selection(Kind.ITEM, item.id)
     }
 
-    fun rotateItem(id: String, degrees: Double) = commit(PlanOps.rotateItem(project, id, degrees))
+    /** True (and a hint shown) when the item is locked and must not change place, turn or size. */
+    private fun lockedItem(id: String): Boolean {
+        if (project.item(id)?.locked != true) return false
+        message = R.string.hint_item_locked
+        return true
+    }
 
-    fun setItemRotation(id: String, degrees: Double) =
+    fun rotateItem(id: String, degrees: Double) {
+        if (lockedItem(id)) return
+        commit(PlanOps.rotateItem(project, id, degrees))
+    }
+
+    fun setItemRotation(id: String, degrees: Double) {
+        if (lockedItem(id)) return
         commit(PlanOps.updateItem(project, id) { it.copy(rotation = Furniture.normalizeAngle(degrees)) })
+    }
 
-    fun setItemSize(id: String, width: Double, depth: Double) = commit(PlanOps.setItemSize(project, id, width, depth))
+    fun setItemSize(id: String, width: Double, depth: Double) {
+        if (lockedItem(id)) return
+        commit(PlanOps.setItemSize(project, id, width, depth))
+    }
+
+    fun toggleItemLock(id: String) = commit(PlanOps.updateItem(project, id) { it.copy(locked = !it.locked) })
 
     fun duplicateItem(id: String) {
         val (p, copy) = PlanOps.duplicateItem(project, id) ?: return
@@ -847,7 +864,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Screen position of the rotation handle of a selected item. */
     fun itemRotateHandle(id: String): Offset? {
-        val item = project.item(id) ?: return null
+        val item = project.item(id)?.takeIf { !it.locked } ?: return null
         val front = toScreen(Furniture.toWorld(item, P(0.0, item.depth / 2)))
         val center = toScreen(P(item.x, item.y))
         val dir = front - center
@@ -1088,6 +1105,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             return DragOp.MoveDimension(project, d.id)
         }
         PlanOps.hitItem(shown, w)?.takeIf { grab(Selection(Kind.ITEM, it.id)) }?.let { item ->
+            if (item.locked) {
+                message = R.string.hint_item_locked
+                return DragOp.Pan(screen)
+            }
             return DragOp.MoveItem(project, item.id, P(item.x, item.y) - w)
         }
         PlanOps.hitWall(project, w, tol)?.takeIf { grab(Selection(Kind.WALL, it.id)) }?.let { wall ->
