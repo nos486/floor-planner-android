@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Chair
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.FitScreen
+import androidx.compose.material.icons.filled.HighlightAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Straighten
@@ -32,6 +34,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -167,7 +171,13 @@ fun PlanScreen(vm: PlanViewModel) {
         }
     }
 
-    BackHandler { if (vm.selection != null) vm.clearSelection() else vm.closeProject() }
+    BackHandler {
+        when {
+            vm.multiSelect -> vm.setMultiSelect(false)
+            vm.selection != null -> vm.clearSelection()
+            else -> vm.closeProject()
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -263,6 +273,16 @@ fun PlanScreen(vm: PlanViewModel) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             PlanCanvas(vm, Modifier.fillMaxSize())
+            if (vm.tool == Tool.SELECT && vm.project.walls.isNotEmpty()) {
+                FilterChip(
+                    selected = vm.multiSelect,
+                    onClick = { vm.setMultiSelect(!vm.multiSelect) },
+                    label = { Text(stringResource(R.string.select_several)) },
+                    leadingIcon = { Icon(Icons.Filled.HighlightAlt, null, Modifier.size(FilterChipDefaults.IconSize)) },
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                )
+            }
             if (vm.project.walls.isEmpty() && vm.tool == Tool.WALL) {
                 Surface(
                     Modifier.align(Alignment.TopCenter).padding(12.dp),

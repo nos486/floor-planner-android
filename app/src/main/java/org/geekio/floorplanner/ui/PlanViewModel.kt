@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.Furniture
+import org.geekio.floorplanner.core.GroupOps
 import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
@@ -41,6 +42,7 @@ sealed interface Draft {
     data class OpeningDraft(val wallId: String, val offset: Double, val width: Double, val isDoor: Boolean) : Draft
     data class MeasureDraft(val a: P, val b: P, val snap: SnapType) : Draft
     data class ArrowDraft(val a: P, val b: P) : Draft
+    data class BoxDraft(val a: P, val b: P) : Draft
 }
 
 /** A label waiting for its text: shown as a dialog, then added at [at] with an arrow to [tip] if set. */
@@ -123,6 +125,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private fun changed() {
         canUndo = undoStack.isNotEmpty()
         canRedo = redoStack.isNotEmpty()
+        if (group.isNotEmpty()) group = GroupOps.existing(project, group)
         selection?.let { sel ->
             val exists = when (sel.kind) {
                 Kind.WALL -> project.wall(sel.id) != null
@@ -265,7 +268,45 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTool(t: Tool) {
         tool = t
         draft = null
-        if (t != Tool.SELECT) selection = null
+        if (t != Tool.SELECT) {
+            selection = null
+            multiSelect = false
+            group = emptySet()
+        }
+    }
+
+    // ---------------- Multiple selection ----------------
+
+    /** When on, taps add to / remove from [group] and dragging on empty space draws a selection box. */
+    var multiSelect by mutableStateOf(false)
+        private set
+    var group by mutableStateOf<Set<Selection>>(emptySet())
+        private set
+
+    fun setMultiSelect(on: Boolean) {
+        multiSelect = on
+        group = if (on) setOfNotNull(selection?.let { GroupOps.member(project, it) }) else emptySet()
+        selection = null
+        if (on) tool = Tool.SELECT
+    }
+
+    fun selectAll() {
+        group = GroupOps.inBox(project, P(-1e9, -1e9), P(1e9, 1e9))
+    }
+
+    fun duplicateGroup() {
+        val (p, copies) = GroupOps.duplicate(project, group, P(50.0, 50.0))
+        commit(p)
+        group = copies
+    }
+
+    fun rotateGroup() = commit(GroupOps.rotate90(project, group))
+
+    fun mirrorGroup() = commit(GroupOps.mirror(project, group))
+
+    fun deleteGroup() {
+        commit(GroupOps.delete(project, group))
+        group = emptySet()
     }
 
     fun clearSelection() {
@@ -366,7 +407,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Viewport ----------------
 
-    fun view() = PlanView(project, pan, zoom, settings, selection, draft)
+    fun view() = PlanView(project, pan, zoom, settings, selection, draft, group)
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
@@ -420,6 +461,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
         data class DrawMeasure(val start: P) : DragOp
         data class DrawArrow(val start: P) : DragOp
+        data class BoxSelect(val start: P) : DragOp
+        data class MoveGroup(val origin: Project, val startWorld: P) : DragOp
         data class MoveLabel(val origin: Project, val id: String, val startWorld: P) : DragOp
         data class MoveDimension(val origin: Project, val id: String) : DragOp
         data class MoveItem(val origin: Project, val id: String, val grab: P) : DragOp
@@ -436,7 +479,13 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun onTap(screen: Offset) {
         val w = toWorld(screen)
         when (tool) {
-            Tool.SELECT -> selection = PlanOps.hit(project, w, worldTol(HIT_DP))
+            Tool.SELECT -> if (multiSelect) {
+                PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }?.let { m ->
+                    group = if (m in group) group - m else group + m
+                }
+            } else {
+                selection = PlanOps.hit(project, w, worldTol(HIT_DP))
+            }
             Tool.WALL -> message = R.string.hint_wall
             Tool.MEASURE -> message = R.string.hint_measure
             Tool.TEXT -> labelRequest = LabelRequest(w, null)
@@ -468,8 +517,15 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 draft = Draft.ArrowDraft(w, w)
                 DragOp.DrawArrow(w)
             }
-            Tool.SELECT -> selectDragStart(screen, w)
+            Tool.SELECT -> if (multiSelect) groupDragStart(w) else selectDragStart(screen, w)
         }
+    }
+
+    private fun groupDragStart(w: P): DragOp {
+        val hit = PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }
+        if (hit != null && hit in group) return DragOp.MoveGroup(project, w)
+        draft = Draft.BoxDraft(w, w)
+        return DragOp.BoxSelect(w)
     }
 
     private fun selectDragStart(screen: Offset, w: P): DragOp {
@@ -555,6 +611,12 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 draft = Draft.MeasureDraft(op.start, s.point, s.type)
             }
             is DragOp.DrawArrow -> draft = Draft.ArrowDraft(op.start, w)
+            is DragOp.BoxSelect -> draft = Draft.BoxDraft(op.start, w)
+            is DragOp.MoveGroup -> {
+                val delta = w - op.startWorld
+                val snapped = if (settings.snap.grid) Snapper.snapToGrid(delta, gridSize) else delta
+                project = GroupOps.translate(op.origin, group, snapped)
+            }
             is DragOp.MoveLabel -> project = PlanOps.moveLabel(op.origin, op.id, w - op.startWorld)
             is DragOp.MoveDimension -> {
                 val d = op.origin.dimension(op.id) ?: return
@@ -604,6 +666,11 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.MoveDimension -> commit(project, before = op.origin)
             is DragOp.MoveLabel -> commit(project, before = op.origin)
+            is DragOp.MoveGroup -> commit(project, before = op.origin)
+            is DragOp.BoxSelect -> {
+                (draft as? Draft.BoxDraft)?.let { group = group + GroupOps.inBox(project, it.a, it.b) }
+                draft = null
+            }
             is DragOp.DrawArrow -> {
                 val d = draft as? Draft.ArrowDraft
                 draft = null
@@ -625,6 +692,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveItem -> project = op.origin
             is DragOp.MoveDimension -> project = op.origin
             is DragOp.MoveLabel -> project = op.origin
+            is DragOp.MoveGroup -> project = op.origin
             is DragOp.RotateItem -> project = op.origin
             else -> Unit
         }

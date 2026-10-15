@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FormatColorReset
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
@@ -56,6 +57,10 @@ import org.geekio.floorplanner.core.Kind
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
+    if (vm.multiSelect) {
+        GroupPanel(vm)
+        return
+    }
     val sel = vm.selection ?: return
     val p = vm.project
     val upm = p.scale.unitsPerMeter
@@ -215,6 +220,42 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                 IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
             }
             body()
+        }
+    }
+}
+
+/** Actions for everything in the multiple selection. */
+@Composable
+private fun GroupPanel(vm: PlanViewModel) {
+    val n = vm.group.size
+    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (n == 0) stringResource(R.string.group_hint) else stringResource(R.string.group_count, n),
+                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = vm::selectAll) { Text(stringResource(R.string.select_all)) }
+                IconButton(onClick = { vm.setMultiSelect(false) }) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = vm::duplicateGroup, enabled = n > 0) {
+                    Icon(Icons.Filled.ContentCopy, null)
+                    Text(stringResource(R.string.duplicate), Modifier.padding(start = 8.dp))
+                }
+                OutlinedButton(onClick = vm::rotateGroup, enabled = n > 0) {
+                    Icon(Icons.Filled.Rotate90DegreesCw, null)
+                    Text(stringResource(R.string.rotate), Modifier.padding(start = 8.dp))
+                }
+                OutlinedButton(onClick = vm::mirrorGroup, enabled = n > 0) {
+                    Icon(Icons.Filled.Flip, null)
+                    Text(stringResource(R.string.mirror), Modifier.padding(start = 8.dp))
+                }
+                OutlinedButton(onClick = vm::deleteGroup, enabled = n > 0) {
+                    Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), Modifier.padding(start = 8.dp))
+                }
+            }
         }
     }
 }

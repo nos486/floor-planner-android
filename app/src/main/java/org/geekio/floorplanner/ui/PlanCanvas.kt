@@ -54,7 +54,14 @@ class PlanView(
     val settings: Settings,
     val selection: Selection? = null,
     val draft: Draft? = null,
+    val group: Set<Selection> = emptySet(),
 ) {
+    fun isSelected(kind: Kind, id: String) =
+        (selection?.kind == kind && selection.id == id) || Selection(kind, id) in group ||
+            // Doors and windows light up with their selected wall.
+            (kind == Kind.DOOR && project.door(id)?.let { Selection(Kind.WALL, it.wallId) in group } == true) ||
+            (kind == Kind.WINDOW && project.window(id)?.let { Selection(Kind.WALL, it.wallId) in group } == true)
+
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
 }
@@ -128,6 +135,14 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.b))
         }
 
+        (vm.draft as? Draft.BoxDraft)?.let { d ->
+            val a = vm.toScreen(d.a)
+            val b = vm.toScreen(d.b)
+            val tl = Offset(minOf(a.x, b.x), minOf(a.y, b.y))
+            val size = Size(kotlin.math.abs(a.x - b.x), kotlin.math.abs(a.y - b.y))
+            drawRect(colors.selected.copy(alpha = 0.08f), tl, size)
+            drawRect(colors.selected, tl, size, style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f))))
+        }
         (vm.draft as? Draft.ArrowDraft)?.let { d ->
             drawArrow(vm.toScreen(d.a), vm.toScreen(d.b), colors.selected, 2.dp.toPx(), 12.dp.toPx())
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
@@ -204,7 +219,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 poly.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
                 close()
             }
-            val isSel = sel?.kind == Kind.ROOM && sel.id == room.id
+            val isSel = v.isSelected(Kind.ROOM, room.id)
             val custom = room.color != null
             val base = Color(FloorPatterns.parseColor(FloorPatterns.colorFor(room.color, i)) ?: 0xFF4F8CFF)
             drawPath(path, base.copy(alpha = if (custom) (if (isSel) 0.8f else 0.6f) else (if (isSel) 0.35f else 0.15f)))
@@ -221,7 +236,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
 
         // Furniture
         for (item in project.items) {
-            val isSel = sel?.kind == Kind.ITEM && sel.id == item.id
+            val isSel = v.isSelected(Kind.ITEM, item.id)
             drawItem(
                 item,
                 if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
@@ -232,7 +247,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
 
         // Walls
         for (wall in project.walls) {
-            val isSel = sel?.kind == Kind.WALL && sel.id == wall.id
+            val isSel = v.isSelected(Kind.WALL, wall.id)
             drawLine(
                 if (isSel) colors.selected else colors.wall,
                 wall.a.o(), wall.b.o(),
@@ -243,10 +258,10 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
 
         // Openings
         for (door in project.doors) {
-            drawDoor(v, door, sel?.kind == Kind.DOOR && sel.id == door.id, colors, px, ghost = false)
+            drawDoor(v, door, v.isSelected(Kind.DOOR, door.id), colors, px, ghost = false)
         }
         for (win in project.windows) {
-            drawWindow(v, win, sel?.kind == Kind.WINDOW && sel.id == win.id, colors, px, ghost = false)
+            drawWindow(v, win, v.isSelected(Kind.WINDOW, win.id), colors, px, ghost = false)
         }
 
         // Draft
@@ -260,7 +275,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 else drawWindow(v, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
             }
             // Drawn on top in screen space below.
-            is Draft.MeasureDraft, is Draft.ArrowDraft, null -> Unit
+            is Draft.MeasureDraft, is Draft.ArrowDraft, is Draft.BoxDraft, null -> Unit
         }
     }
 
@@ -273,7 +288,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
     }
     for (d in project.dimensions) {
         val g = Dimensions.geometry(d) ?: continue
-        val isSel = sel?.kind == Kind.DIMENSION && sel.id == d.id
+        val isSel = v.isSelected(Kind.DIMENSION, d.id)
         drawDimensionLine(v, g, tm, if (isSel) colors.selected else colors.label, colors)
     }
     drawRoomLabels(v, tm, colors)
@@ -284,7 +299,7 @@ private fun DrawScope.drawLabels(v: PlanView, tm: TextMeasurer, c: PlanColors) {
     for (l in v.project.labels) {
         val fontPx = (l.size * v.zoom).toFloat()
         if (fontPx < 4f) continue
-        val selected = v.selection?.kind == Kind.LABEL && v.selection.id == l.id
+        val selected = v.isSelected(Kind.LABEL, l.id)
         val color = if (selected) c.selected else c.label
         val anchor = v.toScreen(l.anchor)
         l.tip?.let { tip -> drawArrow(anchor, v.toScreen(tip), color, maxOf(1.5f, fontPx * 0.08f), fontPx * 0.6f) }

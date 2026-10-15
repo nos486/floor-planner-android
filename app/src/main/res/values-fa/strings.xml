@@ -136,4 +136,10 @@
     <string name="label_text">متن</string>
     <string name="text_size">اندازه متن</string>
     <string name="remove_arrow">حذف فلش</string>
+    <string name="select_several">انتخاب چندتایی</string>
+    <string name="group_hint">روی اجزا بزنید یا کادر بکشید</string>
+    <string name="group_count">%1$d مورد انتخاب شده</string>
+    <string name="select_all">همه</string>
+    <string name="rotate">چرخش</string>
+    <string name="mirror">قرینه</string>
 </resources>

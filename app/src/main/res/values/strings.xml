@@ -136,4 +136,10 @@
     <string name="label_text">Text</string>
     <string name="text_size">Text size</string>
     <string name="remove_arrow">Remove arrow</string>
+    <string name="select_several">Select several</string>
+    <string name="group_hint">Tap items or drag a box</string>
+    <string name="group_count">%1$d selected</string>
+    <string name="select_all">All</string>
+    <string name="rotate">Rotate</string>
+    <string name="mirror">Mirror</string>
 </resources>
