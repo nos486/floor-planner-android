@@ -21,6 +21,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -137,6 +140,10 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
     )
     val textMeasurer = rememberTextMeasurer()
     vm.density = LocalDensity.current.density
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(vm.snapTick) {
+        if (vm.snapTick > 0) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
     vm.xdpi = LocalContext.current.resources.displayMetrics.xdpi
 
     Canvas(
@@ -170,6 +177,21 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         (vm.draft as? Draft.ArrowDraft)?.let { d ->
             drawArrow(vm.toScreen(d.a), vm.toScreen(d.b), colors.selected, 2.dp.toPx(), 12.dp.toPx())
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
+        }
+        (vm.draft as? Draft.RoomDraft)?.let { d ->
+            val upm = project.scale.unitsPerMeter
+            val a = vm.toScreen(d.a)
+            val b = vm.toScreen(d.b)
+            drawTag(textMeasurer, Units.length(kotlin.math.abs(d.b.x - d.a.x) / upm, v.settings.units),
+                Offset((a.x + b.x) / 2, minOf(a.y, b.y) - 24.dp.toPx()), colors.selected, Color.White)
+            drawTag(textMeasurer, Units.length(kotlin.math.abs(d.b.y - d.a.y) / upm, v.settings.units),
+                Offset(maxOf(a.x, b.x) + 36.dp.toPx(), (a.y + b.y) / 2), colors.selected, Color.White)
+        }
+        // Open chain of walls: where the next wall starts, and the point that closes the room.
+        if (vm.tool == Tool.WALL) vm.chain?.let { (first, end) ->
+            if (first.dist(end) > 0.5) drawCircle(colors.selected, 9.dp.toPx(), vm.toScreen(first), style = Stroke(2.dp.toPx()))
+            drawCircle(colors.selected.copy(alpha = 0.2f), 16.dp.toPx(), vm.toScreen(end))
+            drawCircle(colors.selected, 7.dp.toPx(), vm.toScreen(end))
         }
         (vm.draft as? Draft.WallDraft)?.let { d ->
             val upm = project.scale.unitsPerMeter
@@ -220,8 +242,8 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             project.wall(sel.id)?.let { wall ->
                 for (pt in listOf(wall.a, wall.b)) {
                     val s = vm.toScreen(pt)
-                    drawCircle(colors.background, 10.dp.toPx(), s)
-                    drawCircle(colors.selected, 10.dp.toPx(), s, style = Stroke(3.dp.toPx()))
+                    drawCircle(colors.background, 13.dp.toPx(), s)
+                    drawCircle(colors.selected, 13.dp.toPx(), s, style = Stroke(3.dp.toPx()))
                 }
                 // Bend handle in the middle of the wall
                 if ((vm.toScreen(wall.a) - vm.toScreen(wall.b)).getDistance() > 80.dp.toPx()) {
@@ -235,6 +257,7 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+        vm.loupe?.let { drawLoupe(vm, v, it, colors, textMeasurer) }
     }
 }
 
@@ -368,6 +391,13 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
             is Draft.OpeningDraft -> {
                 if (d.isDoor) drawDoor(v, Door("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
                 else drawWindow(v, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
+            }
+            is Draft.RoomDraft -> {
+                val c = listOf(d.a, P(d.b.x, d.a.y), d.b, P(d.a.x, d.b.y))
+                for (i in c.indices) drawLine(
+                    colors.selected.copy(alpha = 0.6f), c[i].o(), c[(i + 1) % 4].o(),
+                    strokeWidth = v.settings.wallThickness.toFloat(), cap = StrokeCap.Square,
+                )
             }
             // Drawn on top in screen space below.
             is Draft.MeasureDraft, is Draft.ArrowDraft, is Draft.BoxDraft, null -> Unit
@@ -605,4 +635,35 @@ private fun DrawScope.drawSunlight(vm: PlanViewModel, project: Project, tm: Text
         drawCircle(SUN_COLOR, 7.dp.toPx(), at)
         drawCircle(Color(0xFFB45309), 7.dp.toPx(), at, style = Stroke(1.5f.dp.toPx()))
     }
+}
+
+/**
+ * A magnified circle of the plan around [at] (the point under the finger), shown above the finger so the
+ * point being placed isn't hidden by it.
+ */
+private fun DrawScope.drawLoupe(vm: PlanViewModel, v: PlanView, at: P, colors: PlanColors, tm: TextMeasurer) {
+    val k = 2.5f
+    val r = 58.dp.toPx()
+    val gap = 64.dp.toPx()
+    val margin = 8.dp.toPx()
+    val finger = vm.toScreen(at)
+    var c = Offset(finger.x, finger.y - gap - r)
+    // Too near the top: put it beside the finger instead.
+    if (c.y - r < margin) c = Offset(if (finger.x > size.width / 2) finger.x - gap - r else finger.x + gap + r, finger.y)
+    c = Offset(c.x.coerceIn(r + margin, maxOf(r + margin, size.width - r - margin)), c.y.coerceIn(r + margin, maxOf(r + margin, size.height - r - margin)))
+    val zoom = v.zoom * k
+    val lv = PlanView(
+        v.project, c - Offset((at.x * zoom).toFloat(), (at.y * zoom).toFloat()), zoom, v.settings,
+        v.selection, v.draft, v.group, v.below, v.backgroundImage, v.diff,
+    )
+    val circle = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
+    drawCircle(Color.Black.copy(alpha = 0.18f), r + 3.dp.toPx(), c + Offset(0f, 2.dp.toPx()))
+    clipPath(circle) {
+        drawRect(colors.background)
+        drawPlan(lv, colors, tm)
+    }
+    drawCircle(colors.selected, r, c, style = Stroke(2.dp.toPx()))
+    val arm = 9.dp.toPx()
+    drawLine(colors.selected, c - Offset(arm, 0f), c + Offset(arm, 0f), 1.5f.dp.toPx())
+    drawLine(colors.selected, c - Offset(0f, arm), c + Offset(0f, arm), 1.5f.dp.toPx())
 }

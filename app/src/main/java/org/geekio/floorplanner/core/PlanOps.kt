@@ -42,6 +42,18 @@ object PlanOps {
         return withRooms(p.copy(walls = p.walls + wall)) to wall
     }
 
+    /** Four walls around the rectangle with opposite corners [a] and [b]; null when a side is too short. */
+    fun addRoom(p: Project, a: P, b: P, thickness: Double): Project? {
+        if (kotlin.math.abs(a.x - b.x) < MIN_WALL_LENGTH || kotlin.math.abs(a.y - b.y) < MIN_WALL_LENGTH) return null
+        val corners = listOf(P(a.x, a.y), P(b.x, a.y), P(b.x, b.y), P(a.x, b.y))
+        // A side lying along an existing wall would only double it.
+        fun covered(x: P) = p.walls.any { Walls.distance(it, x) < 1.0 }
+        val walls = corners.indices.map { i -> corners[i] to corners[(i + 1) % 4] }
+            .filterNot { (s, e) -> covered(s) && covered(e) && covered((s + e) * 0.5) }
+            .map { (s, e) -> Wall.create(generateId("w"), s, e, thickness) }
+        return withRooms(p.copy(walls = p.walls + walls))
+    }
+
     /** Moves every wall endpoint that sits on [from] to [to] (keeps junctions connected). */
     fun moveVertex(p: Project, from: P, to: P): Project {
         val walls = p.walls.map { w ->

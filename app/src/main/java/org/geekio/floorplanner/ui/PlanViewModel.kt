@@ -73,7 +73,12 @@ sealed interface Draft {
     data class MeasureDraft(val a: P, val b: P, val snap: SnapType) : Draft
     data class ArrowDraft(val a: P, val b: P) : Draft
     data class BoxDraft(val a: P, val b: P) : Draft
+    /** A rectangular room being drawn from corner [a] to corner [b]. */
+    data class RoomDraft(val a: P, val b: P) : Draft
 }
+
+/** How the wall tool draws: one wall at a time (chained) or a whole rectangular room. */
+enum class WallMode { LINE, ROOM }
 
 /** A label waiting for its text: shown as a dialog, then added at [at] with an arrow to [tip] if set. */
 data class LabelRequest(val at: P, val tip: P?)
@@ -119,7 +124,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var zoom by mutableStateOf(1f)
         private set
-    private var viewSize = IntSize.Zero
+    var viewSize = IntSize.Zero
+        private set
     private var fittedOnce = false
 
     /** Screen density, used to turn finger-sized tolerances into world units. */
@@ -215,6 +221,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun undo() {
+        endChain()
         val prev = undoStack.removeLastOrNull() ?: return
         redoStack.addLast(project)
         project = prev
@@ -222,6 +229,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun redo() {
+        endChain()
         val next = redoStack.removeLastOrNull() ?: return
         undoStack.addLast(project)
         project = next
@@ -277,6 +285,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         project = p
         selection = null
         draft = null
+        endChain()
         tool = if (p.walls.isEmpty()) Tool.WALL else Tool.SELECT
         fittedOnce = false
         fitToScreen()
@@ -589,11 +598,107 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun selectTool(t: Tool) {
         tool = t
         draft = null
+        endChain()
         if (t != Tool.SELECT) {
             selection = null
             multiSelect = false
             group = emptySet()
         }
+    }
+
+    // ---------------- Drawing walls ----------------
+
+    var wallMode by mutableStateOf(WallMode.LINE)
+        private set
+
+    /** First point and current end of walls drawn one after another; null when no chain is open. */
+    var chain by mutableStateOf<Pair<P, P>?>(null)
+        private set
+
+    /** The last wall of the open chain, so its length can be typed in. */
+    var chainWallId by mutableStateOf<String?>(null)
+        private set
+
+    /** Where the finger is while drawing or moving a corner, for the magnifier; null otherwise. */
+    var loupe by mutableStateOf<P?>(null)
+        private set
+
+    /** True while a finger drags on the plan. */
+    var dragging by mutableStateOf(false)
+        private set
+
+    /** Bumped each time a dragged point catches a wall end or an angle, for a short vibration. */
+    var snapTick by mutableStateOf(0)
+        private set
+    private var lastSnap = SnapType.NONE
+
+    private fun feel(type: SnapType) {
+        val strong = type == SnapType.ENDPOINT || type == SnapType.ANGLE
+        if (strong && type != lastSnap) snapTick++
+        lastSnap = type
+    }
+
+    fun setWallMode(mode: WallMode) {
+        wallMode = mode
+        endChain()
+    }
+
+    fun endChain() {
+        chain = null
+        chainWallId = null
+    }
+
+    /** Continues the chain with a wall from its end to [end]; closes it when [end] is its first point. */
+    private fun extendChain(start: P, end: P, first: P) {
+        val (p, wall) = PlanOps.addWall(project, start, end, settings.wallThickness) ?: return
+        commit(p)
+        chainWallId = wall.id
+        chain = if (end.dist(first) < 0.5) null else first to end
+        if (chain == null) {
+            chainWallId = null
+            message = R.string.msg_room_closed
+        }
+    }
+
+    /** A tap with the wall tool: starts a chain, or adds the next wall of the open one. */
+    private fun tapWallPoint(w: P) {
+        val c = chain
+        if (c == null) {
+            val s = snap(w)
+            chain = s.point to s.point
+            chainWallId = null
+            return
+        }
+        val s = snap(w, start = c.second, exclude = c.second)
+        extendChain(c.second, s.point, c.first)
+    }
+
+    /** Sets the length of the chain's last wall and moves the chain's end with it. */
+    fun setChainWallLength(meters: Double) {
+        val id = chainWallId ?: return
+        val c = chain ?: return
+        setWallLengthMeters(id, meters)
+        project.wall(id)?.let { chain = c.first to it.b }
+    }
+
+    /** When true the bottom panel shows only its title row, leaving the plan visible. */
+    var inspectorCollapsed by mutableStateOf(false)
+
+    /** Top middle of the selected thing on screen, where its floating action bar sits; null when nothing is selected. */
+    fun selectionAnchor(): Offset? {
+        val sel = selection ?: return null
+        val p = project
+        val pts: List<P> = when (sel.kind) {
+            Kind.WALL -> p.wall(sel.id)?.let { Walls.path(it) }
+            Kind.ITEM -> p.item(sel.id)?.let { Furniture.corners(it) }
+            Kind.DOOR -> p.door(sel.id)?.let { o -> p.wall(o.wallId)?.let { PlanOps.openingGeometry(it, o) } }?.let { listOf(it.start, it.end) }
+            Kind.WINDOW -> p.window(sel.id)?.let { o -> p.wall(o.wallId)?.let { PlanOps.openingGeometry(it, o) } }?.let { listOf(it.start, it.end) }
+            Kind.ROOM -> p.room(sel.id)?.polygon
+            Kind.LABEL -> p.label(sel.id)?.let { listOf(it.anchor) }
+            Kind.DIMENSION -> p.dimension(sel.id)?.let { listOf(it.a, it.b) }
+        }?.takeIf { it.isNotEmpty() } ?: return null
+        val screen = pts.map { toScreen(it) }
+        return Offset((screen.minOf { it.x } + screen.maxOf { it.x }) / 2, screen.minOf { it.y })
     }
 
     // ---------------- Multiple selection ----------------
@@ -675,6 +780,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         selection = null
         group = emptySet()
         draft = null
+        endChain()
         commit(p)
     }
 
@@ -820,6 +926,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     private sealed interface DragOp {
         data class Pan(var last: Offset) : DragOp
         data class DrawWall(val start: P) : DragOp
+        data class DrawRoom(val start: P) : DragOp
         data class PlaceOpening(val isDoor: Boolean) : DragOp
         data class MoveVertex(val origin: Project, val from: P) : DragOp
         data class BendWall(val origin: Project, val wallId: String) : DragOp
@@ -854,7 +961,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 selection = PlanOps.hit(shown, w, worldTol(HIT_DP))
             }
-            Tool.WALL -> message = R.string.hint_wall
+            Tool.WALL -> if (wallMode == WallMode.LINE) tapWallPoint(w) else message = R.string.hint_room
             Tool.MEASURE -> message = R.string.hint_measure
             Tool.TEXT -> labelRequest = LabelRequest(w, null)
             Tool.CALIBRATE -> message = R.string.hint_calibrate
@@ -868,11 +975,19 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onDragStart(screen: Offset) {
         val w = toWorld(screen)
+        dragging = true
+        lastSnap = SnapType.NONE
         dragOp = when (tool) {
             Tool.WALL -> {
                 val s = snap(w)
-                draft = Draft.WallDraft(s.point, s.point, s.type)
-                DragOp.DrawWall(s.point)
+                feel(s.type)
+                if (wallMode == WallMode.ROOM) {
+                    draft = Draft.RoomDraft(s.point, s.point)
+                    DragOp.DrawRoom(s.point)
+                } else {
+                    draft = Draft.WallDraft(s.point, s.point, s.type)
+                    DragOp.DrawWall(s.point)
+                }
             }
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
@@ -964,13 +1079,24 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.DrawWall -> {
                 val s = snap(w, start = op.start, exclude = op.start)
+                feel(s.type)
                 draft = Draft.WallDraft(op.start, s.point, s.type)
+                loupe = s.point
+            }
+            is DragOp.DrawRoom -> {
+                // Grid and wall ends only: an angle snap would pull the corner off the rectangle.
+                val s = snap(w)
+                feel(s.type)
+                draft = Draft.RoomDraft(op.start, s.point)
+                loupe = s.point
             }
             is DragOp.PlaceOpening -> updateOpeningDraft(w, op.isDoor)
             is DragOp.MoveVertex -> {
                 val others = op.origin.walls
                 val s = snap(w, exclude = op.from, walls = others)
+                feel(s.type)
                 project = PlanOps.moveVertex(op.origin, op.from, s.point)
+                loupe = s.point
             }
             is DragOp.BendWall -> {
                 val wall = op.origin.wall(op.wallId) ?: return
@@ -993,7 +1119,9 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             }
             is DragOp.DrawMeasure -> {
                 val s = snap(w, start = op.start, exclude = op.start)
+                feel(s.type)
                 draft = Draft.MeasureDraft(op.start, s.point, s.type)
+                loupe = s.point
             }
             is DragOp.DrawArrow -> draft = Draft.ArrowDraft(op.start, w)
             is DragOp.DrawCalibration -> draft = Draft.MeasureDraft(op.start, w, SnapType.NONE)
@@ -1035,10 +1163,20 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         when (val op = dragOp) {
             is DragOp.DrawWall -> {
                 val d = draft as? Draft.WallDraft
-                if (d != null) {
-                    PlanOps.addWall(project, d.a, d.b, settings.wallThickness)?.let { (p, _) -> commit(p) }
-                }
                 draft = null
+                if (d != null) {
+                    // A drag from the end of the open chain carries it on; any other drag starts a new one.
+                    val first = chain?.takeIf { it.second.dist(d.a) < 0.5 }?.first ?: d.a
+                    if (d.a.dist(d.b) >= 1) {
+                        chain = first to d.a
+                        extendChain(d.a, d.b, first)
+                    }
+                }
+            }
+            is DragOp.DrawRoom -> {
+                val d = draft as? Draft.RoomDraft
+                draft = null
+                if (d != null) PlanOps.addRoom(project, d.a, d.b, settings.wallThickness)?.let { commit(it) }
             }
             is DragOp.PlaceOpening -> placeOpeningDraft()
             is DragOp.MoveVertex -> commit(project, before = op.origin)
@@ -1079,6 +1217,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.Pan, null -> Unit
         }
         dragOp = null
+        loupe = null
+        dragging = false
     }
 
     fun onDragCancel() {
@@ -1097,6 +1237,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         }
         draft = null
         dragOp = null
+        loupe = null
+        dragging = false
     }
 
     private fun updateOpeningDraft(w: P, isDoor: Boolean) {
@@ -1122,8 +1264,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         const val MIN_ZOOM = 0.05f
         const val MAX_ZOOM = 20f
-        private const val HIT_DP = 14f
-        private const val HANDLE_DP = 24f
+        private const val HIT_DP = 18f
+        private const val HANDLE_DP = 32f
         private const val SNAP_RADIUS_DP = 18f
         private const val OPENING_HIT_DP = 30f
         private const val WALL_SNAP_DP = 16f

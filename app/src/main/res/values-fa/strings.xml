@@ -48,7 +48,7 @@
     <string name="default_window">عرض پنجره جدید</string>
 
     <string name="hint_start">برای کشیدن دیوار روی صفحه بکشید. با دو انگشت جابه‌جا و بزرگ‌نمایی کنید.</string>
-    <string name="hint_wall">برای کشیدن دیوار، انگشت را روی صفحه بکشید</string>
+    <string name="hint_wall">برای کشیدن دیوار، انگشت را روی صفحه بکشید یا گوشه‌ها را یکی‌یکی بزنید</string>
     <string name="hint_opening">روی دیواری که به اندازه کافی بلند است بزنید</string>
     <string name="msg_wall_too_short">دیوار خیلی کوتاه است</string>
     <string name="msg_saved">ذخیره شد</string>
@@ -259,4 +259,12 @@
     <string name="entrance">ورودی</string>
     <string name="rk_study">اتاق کار</string>
     <string name="rk_family">نشیمن خانوادگی</string>
+    <string name="tools">ابزارها</string>
+    <string name="wall_mode_line">دیوار</string>
+    <string name="wall_mode_room">اتاق</string>
+    <string name="hint_room">برای کشیدن اتاق، از یک گوشه تا گوشه مقابل بکشید</string>
+    <string name="hint_chain">روی گوشه بعدی بزنید</string>
+    <string name="msg_room_closed">اتاق بسته شد</string>
+    <string name="expand">باز کردن</string>
+    <string name="collapse">جمع کردن</string>
 </resources>

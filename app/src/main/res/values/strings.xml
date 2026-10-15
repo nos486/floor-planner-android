@@ -48,7 +48,7 @@
     <string name="default_window">New window width</string>
 
     <string name="hint_start">Drag on the grid to draw walls. Use two fingers to move and zoom.</string>
-    <string name="hint_wall">Drag to draw a wall</string>
+    <string name="hint_wall">Drag to draw a wall, or tap corner after corner</string>
     <string name="hint_opening">Tap on a wall that is long enough</string>
     <string name="msg_wall_too_short">Wall is too short</string>
     <string name="msg_saved">Saved</string>
@@ -259,4 +259,12 @@
     <string name="entrance">Entrance</string>
     <string name="rk_study">Study</string>
     <string name="rk_family">Family room</string>
+    <string name="tools">Tools</string>
+    <string name="wall_mode_line">Walls</string>
+    <string name="wall_mode_room">Room</string>
+    <string name="hint_room">Drag from corner to corner to draw a room</string>
+    <string name="hint_chain">Tap the next corner</string>
+    <string name="msg_room_closed">Room closed</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
 </resources>

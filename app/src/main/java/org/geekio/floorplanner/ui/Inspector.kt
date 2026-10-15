@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FormatColorReset
 import androidx.compose.material.icons.filled.Remove
@@ -266,7 +268,18 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
     Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // Tapping the title folds the panel away to free the plan for the finger.
+                Row(
+                    Modifier.weight(1f).clickable { vm.inspectorCollapsed = !vm.inspectorCollapsed }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        if (vm.inspectorCollapsed) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        stringResource(if (vm.inspectorCollapsed) R.string.expand else R.string.collapse),
+                        Modifier.padding(start = 4.dp),
+                    )
+                }
                 if (sel.kind != Kind.ROOM) {
                     IconButton(onClick = vm::deleteSelected) {
                         Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
@@ -274,7 +287,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                 }
                 IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
             }
-            body()
+            if (!vm.inspectorCollapsed) body()
         }
     }
 }

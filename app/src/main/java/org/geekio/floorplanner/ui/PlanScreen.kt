@@ -28,11 +28,13 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -91,6 +93,7 @@ fun PlanScreen(vm: PlanViewModel) {
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<ScreenDialog?>(null) }
     var addOpen by remember { mutableStateOf(false) }
+    var toolsOpen by remember { mutableStateOf(false) }
 
     vm.message?.let { msgRes ->
         val text = stringResource(msgRes)
@@ -219,8 +222,8 @@ fun PlanScreen(vm: PlanViewModel) {
                     IconButton(onClick = vm::redo, enabled = vm.canRedo) {
                         Icon(Icons.AutoMirrored.Filled.Redo, stringResource(R.string.redo))
                     }
-                    IconButton(onClick = { dialog = ScreenDialog.View3D }) {
-                        Icon(Icons.Filled.ViewInAr, stringResource(R.string.view_3d))
+                    IconButton(onClick = { toolsOpen = true }) {
+                        Icon(Icons.Filled.Handyman, stringResource(R.string.tools))
                     }
                     IconButton(onClick = vm::fitToScreen) {
                         Icon(Icons.Filled.FitScreen, stringResource(R.string.fit))
@@ -247,31 +250,6 @@ fun PlanScreen(vm: PlanViewModel) {
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Export
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.background_photo)) }, onClick = {
-                                menuOpen = false
-                                if (vm.project.background == null) pickBackground.launch("image/*") else dialog = ScreenDialog.Background
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.versions)) }, onClick = {
-                                menuOpen = false; dialog = ScreenDialog.Versions
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.true_scale)) }, onClick = {
-                                menuOpen = false; vm.showTrueScale()
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
-                                menuOpen = false; dialog = ScreenDialog.Layers
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.check_plan)) }, onClick = {
-                                menuOpen = false; vm.checkPlan()
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.sunlight)) }, onClick = {
-                                menuOpen = false; vm.showSunlight()
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.materials)) }, onClick = {
-                                menuOpen = false; dialog = ScreenDialog.Materials
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.home_buyer)) }, onClick = {
-                                menuOpen = false; dialog = ScreenDialog.Buyer
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
@@ -335,6 +313,51 @@ fun PlanScreen(vm: PlanViewModel) {
                     colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 )
             }
+            if (vm.tool == Tool.WALL) {
+                Row(
+                    Modifier.align(Alignment.TopStart).padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for ((mode, label, icon) in listOf(
+                        Triple(WallMode.LINE, R.string.wall_mode_line, Icons.Filled.Timeline),
+                        Triple(WallMode.ROOM, R.string.wall_mode_room, Icons.Filled.CropSquare),
+                    )) {
+                        FilterChip(
+                            selected = vm.wallMode == mode,
+                            onClick = { vm.setWallMode(mode) },
+                            label = { Text(stringResource(label)) },
+                            leadingIcon = { Icon(icon, null, Modifier.size(FilterChipDefaults.IconSize)) },
+                            colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                        )
+                    }
+                }
+            }
+            if (vm.tool == Tool.WALL && vm.chain != null && !vm.dragging) {
+                val lengthTitle = stringResource(R.string.length_m)
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.hint_chain), Modifier.weight(1f, fill = false))
+                        vm.chainWallId?.let { vm.project.wall(it) }?.let { wall ->
+                            val u = vm.settings.units
+                            val upm = vm.project.scale.unitsPerMeter
+                            TextButton(onClick = {
+                                dialog = ScreenDialog.Text(lengthTitle, Units.editValue(wall.length / upm, u)) { text ->
+                                    Units.parseLength(text, u)?.let(vm::setChainWallLength)
+                                }
+                            }) {
+                                Text(Units.length(wall.length / upm, u))
+                                Icon(Icons.Filled.Edit, null, Modifier.padding(start = 4.dp).size(16.dp))
+                            }
+                        }
+                        TextButton(onClick = vm::endChain) { Text(stringResource(R.string.done)) }
+                    }
+                }
+            }
+            if (!vm.dragging && !vm.multiSelect && vm.tool == Tool.SELECT) SelectionBar(vm)
             CompareBanner(vm, Modifier.align(Alignment.BottomCenter).padding(12.dp))
             if (vm.tool == Tool.CALIBRATE || vm.tool == Tool.BACKGROUND) {
                 Surface(
@@ -367,6 +390,23 @@ fun PlanScreen(vm: PlanViewModel) {
     }
 
     if (addOpen) AddSheet(vm) { addOpen = false }
+    if (toolsOpen) ToolsSheet(
+        onPick = { t ->
+            when (t) {
+                PlanTool.VIEW_3D -> dialog = ScreenDialog.View3D
+                PlanTool.SUNLIGHT -> vm.showSunlight()
+                PlanTool.CHECK -> vm.checkPlan()
+                PlanTool.MATERIALS -> dialog = ScreenDialog.Materials
+                PlanTool.BUYER -> dialog = ScreenDialog.Buyer
+                PlanTool.TRUE_SCALE -> vm.showTrueScale()
+                PlanTool.LAYERS -> dialog = ScreenDialog.Layers
+                PlanTool.VERSIONS -> dialog = ScreenDialog.Versions
+                PlanTool.BACKGROUND ->
+                    if (vm.project.background == null) pickBackground.launch("image/*") else dialog = ScreenDialog.Background
+            }
+        },
+        onDismiss = { toolsOpen = false },
+    )
 
     vm.calibrateRequest?.let {
         TextInputDialog(
