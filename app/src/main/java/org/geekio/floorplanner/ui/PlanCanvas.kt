@@ -31,9 +31,11 @@ import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
+import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
 import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.PlanWindow
+import org.geekio.floorplanner.model.Project
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -46,7 +48,20 @@ private val roomPalette = listOf(
     Color(0xFFFF5630), Color(0xFF6554C0), Color(0xFF00B8D9),
 )
 
-private data class PlanColors(
+/** What to draw and where: screen = world * [zoom] + [pan]. */
+class PlanView(
+    val project: Project,
+    val pan: Offset,
+    val zoom: Float,
+    val settings: Settings,
+    val selection: Selection? = null,
+    val draft: Draft? = null,
+) {
+    fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
+    fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
+}
+
+data class PlanColors(
     val background: Color,
     val gridMinor: Color,
     val gridMajor: Color,
@@ -58,7 +73,24 @@ private data class PlanColors(
     val dim: Color,
     val itemFill: Color,
     val itemStroke: Color,
-)
+) {
+    companion object {
+        /** Black on white, for images and PDFs. */
+        val print = PlanColors(
+            background = Color.White,
+            gridMinor = Color(0x22000000),
+            gridMajor = Color(0x44000000),
+            wall = Color(0xFF2B2F36),
+            selected = Color(0xFF2B6CB0),
+            window = Color(0xFF2B7BD6),
+            label = Color(0xFF1F2937),
+            labelBg = Color(0xCCFFFFFF),
+            dim = Color(0xFF4B5563),
+            itemFill = Color(0xFFF1F3F6),
+            itemStroke = Color(0xFF4B5563),
+        )
+    }
+}
 
 @Composable
 fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
@@ -85,97 +117,18 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             .pointerInput(vm) { planGestures(vm) }
             .pointerInput(vm) { wheelZoom(vm) }
     ) {
-        drawRect(colors.background)
-        if (vm.settings.showGrid) drawGrid(vm, colors)
-
-        val project = vm.project
-        val zoom = vm.zoom
-        val sel = vm.selection
-        val px = 1f / zoom // one screen pixel in world units
-
-        withTransform({
-            translate(vm.pan.x, vm.pan.y)
-            scale(zoom, zoom, pivot = Offset.Zero)
-        }) {
-            // Rooms
-            project.rooms.forEachIndexed { i, room ->
-                val poly = room.polygon
-                if (poly.size < 3) return@forEachIndexed
-                val path = Path().apply {
-                    moveTo(poly[0].x.toFloat(), poly[0].y.toFloat())
-                    poly.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
-                    close()
-                }
-                val isSel = sel?.kind == Kind.ROOM && sel.id == room.id
-                drawPath(path, roomPalette[i % roomPalette.size].copy(alpha = if (isSel) 0.35f else 0.15f))
-            }
-
-            // Furniture
-            for (item in project.items) {
-                val isSel = sel?.kind == Kind.ITEM && sel.id == item.id
-                drawItem(
-                    item,
-                    if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
-                    if (isSel) colors.selected else colors.itemStroke,
-                    maxOf(1.2f, 1.5f * px),
-                )
-            }
-
-            // Walls
-            for (wall in project.walls) {
-                val isSel = sel?.kind == Kind.WALL && sel.id == wall.id
-                drawLine(
-                    if (isSel) colors.selected else colors.wall,
-                    wall.a.o(), wall.b.o(),
-                    strokeWidth = wall.thickness.toFloat(),
-                    cap = StrokeCap.Round,
-                )
-            }
-
-            // Openings
-            for (door in project.doors) {
-                drawDoor(vm, door, sel?.kind == Kind.DOOR && sel.id == door.id, colors, px, ghost = false)
-            }
-            for (win in project.windows) {
-                drawWindow(vm, win, sel?.kind == Kind.WINDOW && sel.id == win.id, colors, px, ghost = false)
-            }
-
-            // Draft
-            when (val d = vm.draft) {
-                is Draft.WallDraft -> drawLine(
-                    colors.selected.copy(alpha = 0.6f), d.a.o(), d.b.o(),
-                    strokeWidth = vm.settings.wallThickness.toFloat(), cap = StrokeCap.Round,
-                )
-                is Draft.OpeningDraft -> {
-                    if (d.isDoor) drawDoor(vm, Door("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
-                    else drawWindow(vm, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
-                }
-                // Drawn on top in screen space below.
-                is Draft.MeasureDraft, null -> Unit
-            }
-        }
-
-        // ----- Screen-space overlays -----
-        drawDimensions(vm, textMeasurer, colors)
-        if (vm.settings.showOverall) {
-            for (g in Dimensions.overall(project, (34.dp.toPx() / zoom).toDouble())) {
-                drawDimensionLine(vm, g, textMeasurer, colors.dim, colors)
-            }
-        }
-        for (d in project.dimensions) {
-            val g = Dimensions.geometry(d) ?: continue
-            val isSel = sel?.kind == Kind.DIMENSION && sel.id == d.id
-            drawDimensionLine(vm, g, textMeasurer, if (isSel) colors.selected else colors.label, colors)
-        }
+        val v = vm.view()
+        drawPlan(v, colors, textMeasurer)
+        val project = v.project
+        val sel = v.selection
         (vm.draft as? Draft.MeasureDraft)?.let { d ->
-            Dimensions.geometry(d.a, d.b, 0.0)?.let { drawDimensionLine(vm, it, textMeasurer, colors.selected, colors) }
+            Dimensions.geometry(d.a, d.b, 0.0)?.let { drawDimensionLine(v, it, textMeasurer, colors.selected, colors) }
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
             if (d.snap == SnapType.ENDPOINT) {
                 drawCircle(colors.selected, 12.dp.toPx(), vm.toScreen(d.b), style = Stroke(2.dp.toPx()))
             }
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.b))
         }
-        drawRoomLabels(vm, textMeasurer, colors)
 
         (vm.draft as? Draft.WallDraft)?.let { d ->
             val upm = project.scale.unitsPerMeter
@@ -225,8 +178,96 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-private fun DrawScope.drawDoor(vm: PlanViewModel, door: Door, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
-    val wall = vm.project.wall(door.wallId) ?: return
+
+/** Everything that is part of the plan (no editing handles), drawn for [v]. Used on screen and for exports. */
+fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
+    drawRect(colors.background)
+    if (v.settings.showGrid) drawGrid(v, colors)
+
+    val project = v.project
+    val zoom = v.zoom
+    val sel = v.selection
+    val px = 1f / zoom // one screen pixel in world units
+
+    withTransform({
+        translate(v.pan.x, v.pan.y)
+        scale(zoom, zoom, pivot = Offset.Zero)
+    }) {
+        // Rooms
+        project.rooms.forEachIndexed { i, room ->
+            val poly = room.polygon
+            if (poly.size < 3) return@forEachIndexed
+            val path = Path().apply {
+                moveTo(poly[0].x.toFloat(), poly[0].y.toFloat())
+                poly.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+                close()
+            }
+            val isSel = sel?.kind == Kind.ROOM && sel.id == room.id
+            drawPath(path, roomPalette[i % roomPalette.size].copy(alpha = if (isSel) 0.35f else 0.15f))
+        }
+
+        // Furniture
+        for (item in project.items) {
+            val isSel = sel?.kind == Kind.ITEM && sel.id == item.id
+            drawItem(
+                item,
+                if (isSel) colors.selected.copy(alpha = 0.18f) else colors.itemFill,
+                if (isSel) colors.selected else colors.itemStroke,
+                maxOf(1.2f, 1.5f * px),
+            )
+        }
+
+        // Walls
+        for (wall in project.walls) {
+            val isSel = sel?.kind == Kind.WALL && sel.id == wall.id
+            drawLine(
+                if (isSel) colors.selected else colors.wall,
+                wall.a.o(), wall.b.o(),
+                strokeWidth = wall.thickness.toFloat(),
+                cap = StrokeCap.Round,
+            )
+        }
+
+        // Openings
+        for (door in project.doors) {
+            drawDoor(v, door, sel?.kind == Kind.DOOR && sel.id == door.id, colors, px, ghost = false)
+        }
+        for (win in project.windows) {
+            drawWindow(v, win, sel?.kind == Kind.WINDOW && sel.id == win.id, colors, px, ghost = false)
+        }
+
+        // Draft
+        when (val d = v.draft) {
+            is Draft.WallDraft -> drawLine(
+                colors.selected.copy(alpha = 0.6f), d.a.o(), d.b.o(),
+                strokeWidth = v.settings.wallThickness.toFloat(), cap = StrokeCap.Round,
+            )
+            is Draft.OpeningDraft -> {
+                if (d.isDoor) drawDoor(v, Door("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
+                else drawWindow(v, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
+            }
+            // Drawn on top in screen space below.
+            is Draft.MeasureDraft, null -> Unit
+        }
+    }
+
+    // ----- Screen-space overlays -----
+    drawDimensions(v, tm, colors)
+    if (v.settings.showOverall) {
+        for (g in Dimensions.overall(project, (34.dp.toPx() / zoom).toDouble())) {
+            drawDimensionLine(v, g, tm, colors.dim, colors)
+        }
+    }
+    for (d in project.dimensions) {
+        val g = Dimensions.geometry(d) ?: continue
+        val isSel = sel?.kind == Kind.DIMENSION && sel.id == d.id
+        drawDimensionLine(v, g, tm, if (isSel) colors.selected else colors.label, colors)
+    }
+    drawRoomLabels(v, tm, colors)
+}
+
+private fun DrawScope.drawDoor(v: PlanView, door: Door, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
+    val wall = v.project.wall(door.wallId) ?: return
     val g = PlanOps.openingGeometry(wall, door) ?: return
     val s = PlanOps.doorSwing(g, door)
     val color = if (selected) c.selected else c.wall
@@ -242,8 +283,8 @@ private fun DrawScope.drawDoor(vm: PlanViewModel, door: Door, selected: Boolean,
     )
 }
 
-private fun DrawScope.drawWindow(vm: PlanViewModel, win: PlanWindow, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
-    val wall = vm.project.wall(win.wallId) ?: return
+private fun DrawScope.drawWindow(v: PlanView, win: PlanWindow, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
+    val wall = v.project.wall(win.wallId) ?: return
     val g = PlanOps.openingGeometry(wall, win) ?: return
     drawLine(if (ghost) c.selected.copy(alpha = 0.4f) else c.background, g.start.o(), g.end.o(), (wall.thickness + 2).toFloat())
     val color = if (selected) c.selected else c.window
@@ -257,27 +298,27 @@ private fun DrawScope.drawWindow(vm: PlanViewModel, win: PlanWindow, selected: B
     }
 }
 
-private fun DrawScope.drawGrid(vm: PlanViewModel, c: PlanColors) {
-    val scale = vm.project.scale
+private fun DrawScope.drawGrid(v: PlanView, c: PlanColors) {
+    val scale = v.project.scale
     val grid = scale.gridCm * scale.unitsPerMeter / 100
     val meter = scale.unitsPerMeter
-    val zoom = vm.zoom
-    val tl = vm.toWorld(Offset.Zero)
-    val br = vm.toWorld(Offset(size.width, size.height))
+    val zoom = v.zoom
+    val tl = v.toWorld(Offset.Zero)
+    val br = v.toWorld(Offset(size.width, size.height))
 
     fun lines(step: Double, color: Color, width: Float) {
         if (step * zoom < 6) return
         var x = floor(tl.x / step) * step
         val endX = ceil(br.x / step) * step
         while (x <= endX) {
-            val sx = (x * zoom).toFloat() + vm.pan.x
+            val sx = (x * zoom).toFloat() + v.pan.x
             drawLine(color, Offset(sx, 0f), Offset(sx, size.height), width)
             x += step
         }
         var y = floor(tl.y / step) * step
         val endY = ceil(br.y / step) * step
         while (y <= endY) {
-            val sy = (y * zoom).toFloat() + vm.pan.y
+            val sy = (y * zoom).toFloat() + v.pan.y
             drawLine(color, Offset(0f, sy), Offset(size.width, sy), width)
             y += step
         }
@@ -286,39 +327,39 @@ private fun DrawScope.drawGrid(vm: PlanViewModel, c: PlanColors) {
     lines(meter, c.gridMajor, 1.5f)
 }
 
-private fun DrawScope.drawDimensions(vm: PlanViewModel, tm: TextMeasurer, c: PlanColors) {
-    val upm = vm.project.scale.unitsPerMeter
+private fun DrawScope.drawDimensions(v: PlanView, tm: TextMeasurer, c: PlanColors) {
+    val upm = v.project.scale.unitsPerMeter
     val style = TextStyle(fontSize = 11.sp, color = c.dim)
-    for (wall in vm.project.walls) {
-        val a = vm.toScreen(wall.a)
-        val b = vm.toScreen(wall.b)
+    for (wall in v.project.walls) {
+        val a = v.toScreen(wall.a)
+        val b = v.toScreen(wall.b)
         if ((a - b).getDistance() < 70.dp.toPx()) continue
         val dir = (wall.b - wall.a).normalized()
         val mid = (wall.a + wall.b) * 0.5
         val offWorld = mid + dir.perp() * (wall.thickness / 2)
-        val screenOff = vm.toScreen(offWorld) + Offset(-dir.y.toFloat(), dir.x.toFloat()) * 12.dp.toPx()
+        val screenOff = v.toScreen(offWorld) + Offset(-dir.y.toFloat(), dir.x.toFloat()) * 12.dp.toPx()
         val layout = tm.measure(String.format(Locale.getDefault(), "%.2f", wall.length / upm), style)
         drawText(layout, topLeft = screenOff - Offset(layout.size.width / 2f, layout.size.height / 2f))
     }
 }
 
 /** A dimension line with extension lines, slash ticks and its length, drawn in screen space. */
-private fun DrawScope.drawDimensionLine(vm: PlanViewModel, g: DimensionGeometry, tm: TextMeasurer, color: Color, c: PlanColors) {
-    val start = vm.toScreen(g.start)
-    val end = vm.toScreen(g.end)
+private fun DrawScope.drawDimensionLine(v: PlanView, g: DimensionGeometry, tm: TextMeasurer, color: Color, c: PlanColors) {
+    val start = v.toScreen(g.start)
+    val end = v.toScreen(g.end)
     val len = (end - start).getDistance()
     if (len < 8.dp.toPx()) return
     val dir = (end - start) / len
     val n = Offset(g.normal.x.toFloat(), g.normal.y.toFloat())
     val over = n * (6.dp.toPx() * g.side.toFloat())
     val w = 1.dp.toPx()
-    drawLine(color.copy(alpha = 0.6f), vm.toScreen(g.fromA), start + over, w)
-    drawLine(color.copy(alpha = 0.6f), vm.toScreen(g.fromB), end + over, w)
+    drawLine(color.copy(alpha = 0.6f), v.toScreen(g.fromA), start + over, w)
+    drawLine(color.copy(alpha = 0.6f), v.toScreen(g.fromB), end + over, w)
     drawLine(color, start, end, 1.3f * w)
     val tick = (dir + n) * (5.dp.toPx())
     drawLine(color, start - tick, start + tick, 1.6f * w)
     drawLine(color, end - tick, end + tick, 1.6f * w)
-    val text = String.format(Locale.getDefault(), "%.2f", g.start.dist(g.end) / vm.project.scale.unitsPerMeter)
+    val text = String.format(Locale.getDefault(), "%.2f", g.start.dist(g.end) / v.project.scale.unitsPerMeter)
     val layout = tm.measure(text, TextStyle(fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium))
     val side = if (g.side == 0.0) -1f else g.side.toFloat()
     val center = (start + end) / 2f + n * (side * 10.dp.toPx())
@@ -327,11 +368,11 @@ private fun DrawScope.drawDimensionLine(vm: PlanViewModel, g: DimensionGeometry,
     drawText(layout, topLeft = tl)
 }
 
-private fun DrawScope.drawRoomLabels(vm: PlanViewModel, tm: TextMeasurer, c: PlanColors) {
-    if (vm.zoom < 0.08f) return
-    for (room in vm.project.rooms) {
+private fun DrawScope.drawRoomLabels(v: PlanView, tm: TextMeasurer, c: PlanColors) {
+    if (v.zoom < 0.08f) return
+    for (room in v.project.rooms) {
         val center = room.center ?: continue
-        val s = vm.toScreen(center)
+        val s = v.toScreen(center)
         val text = room.name + "\n" + String.format(Locale.getDefault(), "%.2f m²", room.areaM2)
         val layout = tm.measure(
             text, TextStyle(fontSize = 13.sp, color = c.label, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)

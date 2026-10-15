@@ -12,7 +12,6 @@
     <string name="new_project">New project</string>
     <string name="open_json">Open project (JSON)</string>
     <string name="save_json">Save project (JSON)</string>
-    <string name="export_svg">Export image (SVG)</string>
     <string name="privacy_policy">Privacy policy</string>
     <string name="msg_no_browser">No app found to open the link</string>
     <string name="settings">Settings</string>
@@ -104,4 +103,11 @@
     <string name="delete_project">Delete project?</string>
     <string name="delete_project_warning">"%1$s" will be deleted for good.</string>
     <string name="area_value">%1$s m²</string>
+    <string name="share">Share…</string>
+    <string name="export">Save as…</string>
+    <string name="format_png">Image (PNG)</string>
+    <string name="format_pdf">PDF document</string>
+    <string name="format_svg">Vector image (SVG)</string>
+    <string name="total">Total</string>
+    <string name="msg_no_share_app">No app found to share with</string>
 </resources>

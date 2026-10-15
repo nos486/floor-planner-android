@@ -59,11 +59,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.ProjectIO
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 
 const val PRIVACY_POLICY_URL = "https://github.com/nos486/floor-planner-android/blob/main/PRIVACY.md"
@@ -104,6 +106,55 @@ fun PlanScreen(vm: PlanViewModel) {
     }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
         write(it, vm.exportSvg())
+    }
+
+    fun saveBytes(uri: Uri?, render: () -> ByteArray) {
+        uri ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bytes = render()
+                    context.contentResolver.openOutputStream(uri, "w")!!.use { it.write(bytes) }
+                }.isSuccess
+            }
+            vm.message = if (ok) R.string.msg_saved else R.string.msg_save_failed
+        }
+    }
+
+    val project = vm.project
+    val settings = vm.settings
+    val savePng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
+        saveBytes(it) { PlanExport.png(context, project, settings) }
+    }
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {
+        saveBytes(it) { PlanExport.pdf(context, project, settings) }
+    }
+
+    fun share(ext: String, mime: String, render: () -> ByteArray) {
+        scope.launch {
+            val file = withContext(Dispatchers.Default) {
+                runCatching {
+                    val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+                    File(dir, ProjectIO.fileName(project, ext)).also { it.writeBytes(render()) }
+                }.getOrNull()
+            }
+            if (file == null) {
+                vm.message = R.string.msg_save_failed
+                return@launch
+            }
+            val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, project.projectName)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try {
+                context.startActivity(Intent.createChooser(send, null))
+            } catch (e: ActivityNotFoundException) {
+                vm.message = R.string.msg_no_share_app
+            }
+        }
     }
     val openJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -163,8 +214,11 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.save_json)) }, onClick = {
                                 menuOpen = false; saveJson.launch(ProjectIO.fileName(vm.project, "json"))
                             })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.export_svg)) }, onClick = {
-                                menuOpen = false; saveSvg.launch(ProjectIO.fileName(vm.project, "svg"))
+                            DropdownMenuItem(text = { Text(stringResource(R.string.share)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Share
+                            })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Export
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
@@ -227,6 +281,21 @@ fun PlanScreen(vm: PlanViewModel) {
             vm.createProject(p.copy(scale = vm.project.scale))
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        ScreenDialog.Share -> ChoiceDialog(
+            stringResource(R.string.share),
+            listOf(
+                stringResource(R.string.format_png) to { share("png", "image/png") { PlanExport.png(context, project, settings) } },
+                stringResource(R.string.format_pdf) to { share("pdf", "application/pdf") { PlanExport.pdf(context, project, settings) } },
+            ),
+        ) { dialog = null }
+        ScreenDialog.Export -> ChoiceDialog(
+            stringResource(R.string.export),
+            listOf(
+                stringResource(R.string.format_png) to { savePng.launch(ProjectIO.fileName(project, "png")) },
+                stringResource(R.string.format_pdf) to { savePdf.launch(ProjectIO.fileName(project, "pdf")) },
+                stringResource(R.string.format_svg) to { saveSvg.launch(ProjectIO.fileName(project, "svg")) },
+            ),
+        ) { dialog = null }
         is ScreenDialog.Number -> TextInputDialog(
             title = d.title, initial = d.initial, keyboardType = KeyboardType.Decimal,
             onDismiss = { dialog = null },
@@ -247,6 +316,8 @@ sealed interface ScreenDialog {
     data object RenameProject : ScreenDialog
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
+    data object Share : ScreenDialog
+    data object Export : ScreenDialog
     class Number(val title: String, val initial: String, val onValue: (Double) -> Unit) : ScreenDialog
     class Text(val title: String, val initial: String, val onValue: (String) -> Unit) : ScreenDialog
 }
@@ -258,6 +329,27 @@ private fun androidx.compose.foundation.layout.RowScope.ToolItem(vm: PlanViewMod
         onClick = { vm.selectTool(tool) },
         icon = { Icon(icon, null) },
         label = { Text(stringResource(label)) },
+    )
+}
+
+/** A dialog with one row per option; picking a row runs it and closes the dialog. */
+@Composable
+fun ChoiceDialog(title: String, options: List<Pair<String, () -> Unit>>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                for ((label, action) in options) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.fillMaxWidth().clickable { onDismiss(); action() }.padding(vertical = 14.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }
 

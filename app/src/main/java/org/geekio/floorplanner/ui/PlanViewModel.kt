@@ -331,6 +331,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Viewport ----------------
 
+    fun view() = PlanView(project, pan, zoom, settings, selection, draft)
+
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
 

@@ -12,7 +12,6 @@
     <string name="new_project">پروژه جدید</string>
     <string name="open_json">باز کردن پروژه (JSON)</string>
     <string name="save_json">ذخیره پروژه (JSON)</string>
-    <string name="export_svg">خروجی تصویر (SVG)</string>
     <string name="privacy_policy">سیاست حریم خصوصی</string>
     <string name="msg_no_browser">برنامه‌ای برای باز کردن لینک پیدا نشد</string>
     <string name="settings">تنظیمات</string>
@@ -104,4 +103,11 @@
     <string name="delete_project">پروژه حذف شود؟</string>
     <string name="delete_project_warning">«%1$s» برای همیشه حذف می‌شود.</string>
     <string name="area_value">%1$s متر مربع</string>
+    <string name="share">اشتراک‌گذاری…</string>
+    <string name="export">ذخیره به‌صورت…</string>
+    <string name="format_png">تصویر (PNG)</string>
+    <string name="format_pdf">سند PDF</string>
+    <string name="format_svg">تصویر برداری (SVG)</string>
+    <string name="total">مجموع</string>
+    <string name="msg_no_share_app">برنامه‌ای برای اشتراک‌گذاری پیدا نشد</string>
 </resources>
