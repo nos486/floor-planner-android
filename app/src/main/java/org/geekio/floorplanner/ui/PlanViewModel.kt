@@ -17,7 +17,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.Backgrounds
+import org.geekio.floorplanner.core.Compare
 import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.GroupOps
@@ -271,6 +273,73 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         fittedOnce = false
         fitToScreen()
         loadBackground(id)
+        comparing = null
+        versions = emptyList()
+    }
+
+    // ---------------- Versions ----------------
+
+    /** Saved versions of the open project, newest first. */
+    var versions by mutableStateOf<List<ProjectStore.VersionEntry>>(emptyList())
+        private set
+
+    /** The version being compared with the plan: its name and its copy of the open floor. */
+    var comparing by mutableStateOf<Pair<String, Project>?>(null)
+        private set
+
+    private var diffCache: Triple<Project, Project, PlanDiff>? = null
+
+    /** Differences between [comparing] and the plan, or null when not comparing. */
+    val diff: PlanDiff?
+        get() {
+            val other = comparing?.second ?: return null
+            diffCache?.let { (a, b, d) -> if (a === other && b === project) return d }
+            return Compare.diff(other, project).also { diffCache = Triple(other, project, it) }
+        }
+
+    fun refreshVersions() {
+        val store = store ?: return
+        val id = currentId ?: return
+        viewModelScope.launch { versions = withContext(Dispatchers.IO) { store.versions(id) } }
+    }
+
+    fun saveVersion(name: String) {
+        val store = store ?: return
+        val id = currentId ?: return
+        val snapshot = project
+        val n = name.trim().ifEmpty { return }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { store.saveVersion(id, n, snapshot) }
+            message = if (ok) R.string.msg_version_saved else R.string.msg_save_failed
+            refreshVersions()
+        }
+    }
+
+    /** Replaces the plan with a saved version (one undo step brings the current plan back). */
+    fun restoreVersion(key: String) {
+        val id = currentId ?: return
+        val p = store?.loadVersion(id, key) ?: return
+        comparing = null
+        selection = null
+        group = emptySet()
+        commit(p.copy(projectName = project.projectName))
+        fitToScreen()
+    }
+
+    fun deleteVersion(key: String) {
+        val id = currentId ?: return
+        store?.deleteVersion(id, key)
+        refreshVersions()
+    }
+
+    fun compareWith(entry: ProjectStore.VersionEntry) {
+        val id = currentId ?: return
+        val p = store?.loadVersion(id, entry.key) ?: return
+        comparing = entry.name to Floors.switchTo(p, project.floorIndex)
+    }
+
+    fun stopComparing() {
+        comparing = null
     }
 
     // ---------------- Background photo ----------------
@@ -569,7 +638,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     /** The project without its hidden layers: what is drawn, exported and can be tapped. */
     val shown: Project get() = Layers.visible(project, settings.hiddenLayers)
 
-    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project), backgroundImage)
+    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project), backgroundImage, diff)
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)

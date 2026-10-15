@@ -209,4 +209,16 @@
     <string name="calibrate_message">طول واقعی خطی که کشیدید چقدر است؟</string>
     <string name="msg_image_failed">این عکس باز نشد</string>
     <string name="format_dxf">DXF (اتوکد)</string>
+    <string name="versions">نسخه‌ها</string>
+    <string name="versions_note">یک نسخه از نقشه‌ی فعلی نگه دارید، مثلاً قبل از بازسازی، و بعداً تغییرات را با آن مقایسه کنید.</string>
+    <string name="version_name">نام نسخه</string>
+    <string name="save_version">ذخیره</string>
+    <string name="no_versions">هنوز نسخه‌ای ذخیره نشده</string>
+    <string name="compare">مقایسه</string>
+    <string name="restore">بازگردانی</string>
+    <string name="msg_version_saved">نسخه ذخیره شد</string>
+    <string name="comparing_with">مقایسه با «%1$s»</string>
+    <string name="compare_areas">قبلاً %1$s · حالا %2$s</string>
+    <string name="details">جزئیات</string>
+    <string name="compare_legend">قرمز: دیوارهای برداشته‌شده. سبز: دیوارهای جدید.</string>
 </resources>

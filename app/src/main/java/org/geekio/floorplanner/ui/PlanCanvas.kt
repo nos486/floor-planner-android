@@ -36,6 +36,7 @@ import org.geekio.floorplanner.core.FurnitureCategory
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.P
+import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
@@ -54,6 +55,8 @@ private fun P.o() = Offset(x.toFloat(), y.toFloat())
 
 val ELECTRICAL_COLOR = Color(0xFFD97706)
 val PLUMBING_COLOR = Color(0xFF0284C7)
+val REMOVED_COLOR = Color(0xFFDC2626)
+val ADDED_COLOR = Color(0xFF16A34A)
 
 
 /** What to draw and where: screen = world * [zoom] + [pan]. */
@@ -69,6 +72,8 @@ class PlanView(
     val below: Floor? = null,
     /** Photo of a paper plan under the drawing, placed by [Project.background]. */
     val backgroundImage: ImageBitmap? = null,
+    /** When comparing with a saved version: walls taken out are shown in red, new walls in green. */
+    val diff: PlanDiff? = null,
 ) {
     fun isSelected(kind: Kind, id: String) =
         (selection?.kind == kind && selection.id == id) || Selection(kind, id) in group ||
@@ -310,6 +315,25 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 drawPath(path, color, style = Stroke(wall.thickness.toFloat(), cap = StrokeCap.Round, join = StrokeJoin.Round))
             } else {
                 drawLine(color, wall.a.o(), wall.b.o(), strokeWidth = wall.thickness.toFloat(), cap = StrokeCap.Round)
+            }
+        }
+
+        // Changes against a saved version
+        v.diff?.let { d ->
+            val dash = PathEffect.dashPathEffect(floatArrayOf(12 * px, 8 * px))
+            for (wall in d.removedWalls) {
+                val pts = Walls.path(wall)
+                val path = Path().apply {
+                    moveTo(pts[0].x.toFloat(), pts[0].y.toFloat())
+                    pts.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+                }
+                drawPath(path, REMOVED_COLOR.copy(alpha = 0.25f), style = Stroke(wall.thickness.toFloat(), cap = StrokeCap.Round))
+                drawPath(path, REMOVED_COLOR, style = Stroke(maxOf(2f, 2.5f * px), pathEffect = dash))
+            }
+            for (wall in d.addedWalls) {
+                Walls.path(wall).zipWithNext { a, b ->
+                    drawLine(ADDED_COLOR, a.o(), b.o(), (wall.thickness * 0.45).toFloat(), cap = StrokeCap.Round)
+                }
             }
         }
 

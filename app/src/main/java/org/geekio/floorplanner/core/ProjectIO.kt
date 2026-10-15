@@ -3,6 +3,7 @@ package org.geekio.floorplanner.core
 import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.SavedVersion
 import kotlinx.serialization.json.Json
 import java.util.Locale
 
@@ -16,6 +17,13 @@ object ProjectIO {
     }
 
     fun toJson(p: Project): String = json.encodeToString(Project.serializer(), p)
+
+    fun versionToJson(v: SavedVersion): String = json.encodeToString(SavedVersion.serializer(), v)
+
+    fun versionFromJson(text: String): SavedVersion? = runCatching {
+        val v = json.decodeFromString(SavedVersion.serializer(), text)
+        v.copy(project = fromJson(toJson(v.project)) ?: return null)
+    }.getOrNull()
 
     /** Parses a project file; returns null when it isn't a valid floor plan. */
     fun fromJson(text: String): Project? = try {

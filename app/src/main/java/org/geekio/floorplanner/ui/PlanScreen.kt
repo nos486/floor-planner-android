@@ -249,6 +249,9 @@ fun PlanScreen(vm: PlanViewModel) {
                                 menuOpen = false
                                 if (vm.project.background == null) pickBackground.launch("image/*") else dialog = ScreenDialog.Background
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.versions)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Versions
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Layers
                             })
@@ -307,6 +310,7 @@ fun PlanScreen(vm: PlanViewModel) {
                     colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             }
+            CompareBanner(vm, Modifier.align(Alignment.BottomCenter).padding(12.dp))
             if (vm.tool == Tool.CALIBRATE || vm.tool == Tool.BACKGROUND) {
                 Surface(
                     Modifier.align(Alignment.BottomCenter).padding(12.dp),
@@ -369,6 +373,7 @@ fun PlanScreen(vm: PlanViewModel) {
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
         ScreenDialog.Layers -> LayersDialog(vm) { dialog = null }
+        ScreenDialog.Versions -> VersionsDialog(vm) { dialog = null }
         ScreenDialog.Background -> BackgroundDialog(vm, onPick = { pickBackground.launch("image/*") }) { dialog = null }
         ScreenDialog.View3D -> ThreeDView(vm.project) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
@@ -409,6 +414,7 @@ sealed interface ScreenDialog {
     data object Settings : ScreenDialog
     data object Materials : ScreenDialog
     data object Layers : ScreenDialog
+    data object Versions : ScreenDialog
     data object Background : ScreenDialog
     data object View3D : ScreenDialog
     data object Share : ScreenDialog

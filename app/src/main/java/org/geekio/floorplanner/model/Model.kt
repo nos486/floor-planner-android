@@ -198,3 +198,7 @@ data class Background(
     val scale: Double = 1.0,
     val opacity: Double = 0.5,
 )
+
+/** A named snapshot of a whole project, such as "Before renovation". */
+@Serializable
+data class SavedVersion(val name: String, val time: Long, val project: Project)

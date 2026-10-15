@@ -1,6 +1,7 @@
 package org.geekio.floorplanner.core
 
 import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.SavedVersion
 import java.io.File
 
 /** A saved project as shown on the start screen. */
@@ -43,8 +44,31 @@ class ProjectStore(private val dir: File) {
     /** The photo under the plan of project [id], if it has one. */
     fun backgroundFile(id: String) = File(dir, "$id.bg.jpg")
 
+    /** A saved version of a project: [key] names its file. */
+    data class VersionEntry(val key: String, val name: String, val time: Long)
+
+    private fun versionDir(id: String) = File(dir, "$id.versions")
+
+    fun saveVersion(id: String, name: String, project: Project, time: Long = System.currentTimeMillis()): Boolean = runCatching {
+        val d = versionDir(id).apply { mkdirs() }
+        File(d, "$time.json").writeText(ProjectIO.versionToJson(SavedVersion(name, time, project)))
+    }.isSuccess
+
+    /** Saved versions of project [id], newest first. */
+    fun versions(id: String): List<VersionEntry> =
+        (versionDir(id).listFiles { f -> f.name.endsWith(".json") } ?: emptyArray()).mapNotNull { f ->
+            ProjectIO.versionFromJson(runCatching { f.readText() }.getOrNull() ?: return@mapNotNull null)
+                ?.let { VersionEntry(f.name.removeSuffix(".json"), it.name, it.time) }
+        }.sortedByDescending { it.time }
+
+    fun loadVersion(id: String, key: String): Project? =
+        runCatching { File(versionDir(id), "$key.json").readText() }.getOrNull()?.let { ProjectIO.versionFromJson(it)?.project }
+
+    fun deleteVersion(id: String, key: String) = File(versionDir(id), "$key.json").delete()
+
     fun delete(id: String): Boolean {
         backgroundFile(id).delete()
+        versionDir(id).deleteRecursively()
         return file(id).delete()
     }
 
