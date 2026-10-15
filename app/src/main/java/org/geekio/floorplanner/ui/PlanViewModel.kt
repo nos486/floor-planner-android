@@ -546,6 +546,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         commit(project.copy(scale = project.scale.copy(gridCm = cm.coerceIn(5.0, 200.0))))
     }
 
+    fun setPrice(price: Double?) = commit(project.copy(price = price))
+
     fun setEstimateInputs(height: Double, costs: Costs) = commit(project.copy(wallHeight = height, costs = costs))
 
     fun updateSettings(s: Settings) {

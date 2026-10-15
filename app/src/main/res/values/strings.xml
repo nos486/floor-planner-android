@@ -239,4 +239,14 @@
     <string name="latitude_value">Latitude %1$s</string>
     <string name="sun_hours_title">Direct sun this month</string>
     <string name="sun_hours">%1$s: %2$s h</string>
+    <string name="home_buyer">Home buyer</string>
+    <string name="price">Price</string>
+    <string name="net_area">Usable area (inside the walls)</string>
+    <string name="gross_area">Gross area (with the walls)</string>
+    <string name="price_per_net">Price per usable %1$s</string>
+    <string name="price_per_gross">Price per gross %1$s</string>
+    <string name="room_net">%1$s usable (%2$s to wall centres)</string>
+    <string name="buyer_note">Usable area is measured to the wall faces. Gross area adds inner walls once and outer walls in full; balconies and shared areas are not included.</string>
+    <string name="compare_homes">Compare homes</string>
+    <string name="compare_homes_hint">Set a price in each plan (menu, Home buyer) to compare prices per m².</string>
 </resources>

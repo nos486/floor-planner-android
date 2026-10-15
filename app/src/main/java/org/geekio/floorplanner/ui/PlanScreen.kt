@@ -264,6 +264,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.materials)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Materials
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.home_buyer)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Buyer
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Settings
                             })
@@ -378,6 +381,7 @@ fun PlanScreen(vm: PlanViewModel) {
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
+        ScreenDialog.Buyer -> BuyerDialog(vm) { dialog = null }
         ScreenDialog.Layers -> LayersDialog(vm) { dialog = null }
         ScreenDialog.Versions -> VersionsDialog(vm) { dialog = null }
         ScreenDialog.Background -> BackgroundDialog(vm, onPick = { pickBackground.launch("image/*") }) { dialog = null }
@@ -419,6 +423,7 @@ sealed interface ScreenDialog {
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
     data object Materials : ScreenDialog
+    data object Buyer : ScreenDialog
     data object Layers : ScreenDialog
     data object Versions : ScreenDialog
     data object Background : ScreenDialog

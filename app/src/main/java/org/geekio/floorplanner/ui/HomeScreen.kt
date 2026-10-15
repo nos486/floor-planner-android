@@ -109,6 +109,9 @@ fun HomeScreen(vm: PlanViewModel) {
                                 menuOpen = false
                                 openJson.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.compare_homes)) }, onClick = {
+                                menuOpen = false; dialog = HomeDialog.Compare
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = {
                                 menuOpen = false; dialog = HomeDialog.Settings
                             })
@@ -176,6 +179,7 @@ fun HomeScreen(vm: PlanViewModel) {
             vm.createProject(p)
         }
         HomeDialog.Settings -> SettingsDialog(vm) { dialog = null }
+        HomeDialog.Compare -> CompareHomesDialog(vm.projects, vm.settings.units, onOpen = vm::openProject) { dialog = null }
         is HomeDialog.Rename -> TextInputDialog(
             title = stringResource(R.string.project_name), initial = d.entry.project.projectName,
             onDismiss = { dialog = null }, onConfirm = { vm.renameProjectEntry(d.entry.id, it); dialog = null },
@@ -202,6 +206,7 @@ fun HomeScreen(vm: PlanViewModel) {
 private sealed interface HomeDialog {
     data object New : HomeDialog
     data object Settings : HomeDialog
+    data object Compare : HomeDialog
     class Rename(val entry: ProjectEntry) : HomeDialog
     class Duplicate(val entry: ProjectEntry) : HomeDialog
     class Delete(val entry: ProjectEntry) : HomeDialog

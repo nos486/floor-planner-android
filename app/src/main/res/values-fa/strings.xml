@@ -239,4 +239,14 @@
     <string name="latitude_value">عرض %1$s</string>
     <string name="sun_hours_title">آفتاب مستقیم در این ماه</string>
     <string name="sun_hours">%1$s: %2$s ساعت</string>
+    <string name="home_buyer">خریدار خانه</string>
+    <string name="price">قیمت</string>
+    <string name="net_area">متراژ مفید (داخل دیوارها)</string>
+    <string name="gross_area">متراژ ناخالص (با دیوارها)</string>
+    <string name="price_per_net">قیمت هر %1$s مفید</string>
+    <string name="price_per_gross">قیمت هر %1$s ناخالص</string>
+    <string name="room_net">%1$s مفید (%2$s تا وسط دیوار)</string>
+    <string name="buyer_note">متراژ مفید تا روی دیوارها اندازه گرفته می‌شود. متراژ ناخالص دیوارهای داخلی و بیرونی را هم حساب می‌کند؛ بالکن و مشاعات حساب نشده‌اند.</string>
+    <string name="compare_homes">مقایسه خانه‌ها</string>
+    <string name="compare_homes_hint">برای مقایسه قیمت هر متر، در هر نقشه از منو «خریدار خانه» قیمت را وارد کن.</string>
 </resources>
