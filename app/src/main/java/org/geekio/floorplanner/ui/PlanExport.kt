@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.model.Project
 import java.io.ByteArrayOutputStream
 import java.text.DateFormat
@@ -84,6 +86,7 @@ object PlanExport {
         val ph = if (landscape) 595 else 842
         val density = 0.75f
         val tm = measurer(context, density)
+        val u = settings.units
         val doc = PdfDocument()
         val page = doc.startPage(PdfDocument.PageInfo.Builder(pw, ph, 1).create())
         val margin = 36f
@@ -106,7 +109,7 @@ object PlanExport {
             text(tm, p.projectName, Offset(margin, margin), 18.sp, dark, FontWeight.Bold, planW)
             val date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date())
             text(
-                tm, date + "  ·  " + context.getString(R.string.total_area, fmt(p.totalAreaM2), p.rooms.size),
+                tm, date + "  ·  " + context.getString(R.string.total_area, Units.area(p.totalAreaM2, u), p.rooms.size),
                 Offset(margin, margin + 24f), 10.sp, grey, FontWeight.Normal, planW,
             )
             drawLine(Color(0xFFD1D5DB), Offset(margin, planTop - 6f), Offset(pw - margin, planTop - 6f), 0.8f)
@@ -115,8 +118,8 @@ object PlanExport {
             val tableTop = ph - margin - tableH
             drawLine(Color(0xFFD1D5DB), Offset(margin, tableTop), Offset(pw - margin, tableTop), 0.8f)
             val colW = planW / cols
-            val cells = p.rooms.map { it.name to fmt(it.areaM2) + " m²" } +
-                (context.getString(R.string.total) to fmt(p.totalAreaM2) + " m²")
+            val cells = p.rooms.map { it.name to Units.area(it.areaM2, u) } +
+                (context.getString(R.string.total) to Units.area(p.totalAreaM2, u))
             cells.forEachIndexed { i, (name, area) ->
                 val x = margin + (i / rows) * colW
                 val y = tableTop + 8f + (i % rows) * 14f
@@ -127,7 +130,8 @@ object PlanExport {
 
             // Scale bar: the longest round length that fits in 120 pt.
             val upm = p.scale.unitsPerMeter
-            val meters = listOf(10.0, 5.0, 2.0, 1.0, 0.5).firstOrNull { it * upm * view.zoom <= 120 } ?: 0.5
+            val steps = if (u == UnitSystem.IMPERIAL) listOf(30.0, 20.0, 10.0, 5.0, 2.0).map { it * 0.3048 } else listOf(10.0, 5.0, 2.0, 1.0, 0.5)
+            val meters = steps.firstOrNull { it * upm * view.zoom <= 120 } ?: steps.last()
             val barW = (meters * upm * view.zoom).toFloat()
             val barY = planTop + planH + 6f
             val barX = pw - margin - barW
@@ -137,7 +141,7 @@ object PlanExport {
             // Real cm per world unit divided by paper cm per world unit (1 pt = 2.54 / 72 cm).
             val ratio = (100.0 / upm) / (view.zoom * 2.54 / 72.0)
             text(
-                tm, String.format(Locale.getDefault(), "%s m  ·  1:%d", fmt(meters, 1), Math.round(ratio)),
+                tm, Units.length(meters, u) + String.format(Locale.getDefault(), "  ·  1:%d", Math.round(ratio)),
                 Offset(barX - 110f, barY - 6f), 8.sp, grey, FontWeight.Normal, 104f,
             )
         }

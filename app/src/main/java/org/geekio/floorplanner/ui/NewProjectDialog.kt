@@ -30,11 +30,13 @@ import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.RoomKey
 import org.geekio.floorplanner.core.Templates
+import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.model.Project
 
 /** Asks for the name of a new project and what to start from: an empty plan or a template. */
 @Composable
-fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (Project) -> Unit) {
+fun NewProjectDialog(units: UnitSystem, onDismiss: () -> Unit, onCreate: (Project) -> Unit) {
     val context = LocalContext.current
     val defaultName = stringResource(R.string.default_project_name)
     var name by remember { mutableStateOf(defaultName) }
@@ -77,7 +79,7 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (Project) -> Unit) {
                                 Text(stringResource(templateName(key)), style = MaterialTheme.typography.bodyLarge)
                                 if (t != null) {
                                     Text(
-                                        stringResource(R.string.template_info, fmt(t.area.toDouble(), 0), t.rooms),
+                                        stringResource(R.string.template_info, Units.area(t.area.toDouble(), units), t.rooms),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = cs.onSurfaceVariant,
                                     )

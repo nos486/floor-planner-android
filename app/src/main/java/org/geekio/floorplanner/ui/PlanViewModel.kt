@@ -1,6 +1,8 @@
 package org.geekio.floorplanner.ui
 
 import android.app.Application
+import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -25,6 +27,7 @@ import org.geekio.floorplanner.core.SnapType
 import org.geekio.floorplanner.core.generateId
 import org.geekio.floorplanner.core.roundTo
 import org.geekio.floorplanner.core.Snapper
+import org.geekio.floorplanner.core.UnitSystem
 import org.geekio.floorplanner.model.Project
 import org.geekio.floorplanner.model.Wall
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +60,7 @@ data class Settings(
     val windowWidth: Double = 120.0,
     /** Text height of new labels, in cm. */
     val labelSize: Double = 25.0,
+    val units: UnitSystem = UnitSystem.METRIC,
 )
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
@@ -105,9 +109,47 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     private var saveJob: Job? = null
 
+    // Null when there is no app storage (screenshot tests).
+    private val prefs: SharedPreferences? = runCatching { app.getSharedPreferences("settings", Context.MODE_PRIVATE) }.getOrNull()
+
     init {
         filesDir?.let { store?.migrateLegacy(File(it, "autosave.json")) }
+        prefs?.let { settings = loadSettings(it) }
         refreshProjects()
+    }
+
+    private fun loadSettings(p: SharedPreferences): Settings {
+        val d = Settings()
+        fun dbl(key: String, def: Double) = p.getFloat(key, def.toFloat()).toDouble()
+        return Settings(
+            showGrid = p.getBoolean("showGrid", d.showGrid),
+            showOverall = p.getBoolean("showOverall", d.showOverall),
+            snap = SnapOptions(
+                grid = p.getBoolean("snapGrid", d.snap.grid),
+                endpoints = p.getBoolean("snapEndpoints", d.snap.endpoints),
+                angles = p.getBoolean("snapAngles", d.snap.angles),
+            ),
+            wallThickness = dbl("wallThickness", d.wallThickness),
+            doorWidth = dbl("doorWidth", d.doorWidth),
+            windowWidth = dbl("windowWidth", d.windowWidth),
+            labelSize = dbl("labelSize", d.labelSize),
+            units = runCatching { UnitSystem.valueOf(p.getString("units", null) ?: "") }.getOrDefault(d.units),
+        )
+    }
+
+    private fun saveSettings(s: Settings) {
+        prefs?.edit()
+            ?.putBoolean("showGrid", s.showGrid)
+            ?.putBoolean("showOverall", s.showOverall)
+            ?.putBoolean("snapGrid", s.snap.grid)
+            ?.putBoolean("snapEndpoints", s.snap.endpoints)
+            ?.putBoolean("snapAngles", s.snap.angles)
+            ?.putFloat("wallThickness", s.wallThickness.toFloat())
+            ?.putFloat("doorWidth", s.doorWidth.toFloat())
+            ?.putFloat("windowWidth", s.windowWidth.toFloat())
+            ?.putFloat("labelSize", s.labelSize.toFloat())
+            ?.putString("units", s.units.name)
+            ?.apply()
     }
 
     // ---------------- History ----------------
@@ -246,7 +288,6 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun exportJson() = ProjectIO.toJson(project)
-    fun exportSvg() = ProjectIO.toSvg(project)
 
     fun setGridCm(cm: Double) {
         commit(project.copy(scale = project.scale.copy(gridCm = cm.coerceIn(5.0, 200.0))))
@@ -254,6 +295,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateSettings(s: Settings) {
         settings = s
+        saveSettings(s)
     }
 
     /** Shows [p] without history or autosave; used to render store screenshots. */
@@ -361,7 +403,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setLabelSize(id: String, size: Double) {
         commit(PlanOps.updateLabel(project, id) { it.copy(size = size) })
-        settings = settings.copy(labelSize = size)
+        updateSettings(settings.copy(labelSize = size))
     }
 
     fun removeLabelArrow(id: String) = commit(PlanOps.updateLabel(project, id) { it.copy(arrow = null) })

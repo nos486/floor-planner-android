@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.ProjectEntry
 import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.model.Project
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -155,7 +157,7 @@ fun HomeScreen(vm: PlanViewModel) {
             ) {
                 items(vm.projects, key = { it.id }) { entry ->
                     ProjectCard(
-                        entry,
+                        entry, vm.settings.units,
                         onOpen = { vm.openProject(entry.id) },
                         onRename = { dialog = HomeDialog.Rename(entry) },
                         onDuplicate = { dialog = HomeDialog.Duplicate(entry) },
@@ -168,7 +170,7 @@ fun HomeScreen(vm: PlanViewModel) {
 
     val copySuffix = stringResource(R.string.copy_suffix)
     when (val d = dialog) {
-        HomeDialog.New -> NewProjectDialog(onDismiss = { dialog = null }) { p ->
+        HomeDialog.New -> NewProjectDialog(vm.settings.units, onDismiss = { dialog = null }) { p ->
             dialog = null
             vm.createProject(p)
         }
@@ -205,7 +207,7 @@ private sealed interface HomeDialog {
 }
 
 @Composable
-private fun ProjectCard(entry: ProjectEntry, onOpen: () -> Unit, onRename: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit) {
+private fun ProjectCard(entry: ProjectEntry, units: UnitSystem, onOpen: () -> Unit, onRename: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
@@ -216,7 +218,7 @@ private fun ProjectCard(entry: ProjectEntry, onOpen: () -> Unit, onRename: () ->
             Column(Modifier.weight(1f).padding(start = 12.dp, bottom = 10.dp)) {
                 Text(entry.project.projectName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    stringResource(R.string.area_value, fmt(entry.project.totalAreaM2)) + " · " +
+                    Units.area(entry.project.totalAreaM2, units) + " · " +
                         DateUtils.getRelativeTimeSpanString(entry.modified).toString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = cs.onSurfaceVariant,

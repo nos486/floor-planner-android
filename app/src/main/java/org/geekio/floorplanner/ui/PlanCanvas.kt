@@ -35,6 +35,7 @@ import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
@@ -149,7 +150,7 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         }
         (vm.draft as? Draft.WallDraft)?.let { d ->
             val upm = project.scale.unitsPerMeter
-            drawTag(textMeasurer, String.format(Locale.getDefault(), "%.2f m", d.a.dist(d.b) / upm),
+            drawTag(textMeasurer, Units.length(d.a.dist(d.b) / upm, v.settings.units),
                 vm.toScreen(d.b) + Offset(0f, -36.dp.toPx()), colors.selected, Color.White)
             drawCircle(colors.selected, 6.dp.toPx(), vm.toScreen(d.a))
             if (d.snap == SnapType.ENDPOINT) {
@@ -406,7 +407,7 @@ private fun DrawScope.drawDimensions(v: PlanView, tm: TextMeasurer, c: PlanColor
         val mid = (wall.a + wall.b) * 0.5
         val offWorld = mid + dir.perp() * (wall.thickness / 2)
         val screenOff = v.toScreen(offWorld) + Offset(-dir.y.toFloat(), dir.x.toFloat()) * 12.dp.toPx()
-        val layout = tm.measure(String.format(Locale.getDefault(), "%.2f", wall.length / upm), style)
+        val layout = tm.measure(Units.lengthShort(wall.length / upm, v.settings.units), style)
         drawText(layout, topLeft = screenOff - Offset(layout.size.width / 2f, layout.size.height / 2f))
     }
 }
@@ -427,7 +428,7 @@ private fun DrawScope.drawDimensionLine(v: PlanView, g: DimensionGeometry, tm: T
     val tick = (dir + n) * (5.dp.toPx())
     drawLine(color, start - tick, start + tick, 1.6f * w)
     drawLine(color, end - tick, end + tick, 1.6f * w)
-    val text = String.format(Locale.getDefault(), "%.2f", g.start.dist(g.end) / v.project.scale.unitsPerMeter)
+    val text = Units.lengthShort(g.start.dist(g.end) / v.project.scale.unitsPerMeter, v.settings.units)
     val layout = tm.measure(text, TextStyle(fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium))
     val side = if (g.side == 0.0) -1f else g.side.toFloat()
     val center = (start + end) / 2f + n * (side * 10.dp.toPx())
@@ -441,7 +442,7 @@ private fun DrawScope.drawRoomLabels(v: PlanView, tm: TextMeasurer, c: PlanColor
     for (room in v.project.rooms) {
         val center = room.center ?: continue
         val s = v.toScreen(center)
-        val text = room.name + "\n" + String.format(Locale.getDefault(), "%.2f m²", room.areaM2)
+        val text = room.name + "\n" + Units.area(room.areaM2, v.settings.units)
         val layout = tm.measure(
             text, TextStyle(fontSize = 13.sp, color = c.label, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
         )

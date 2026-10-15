@@ -61,7 +61,7 @@ object ProjectIO {
         is Prim.Line -> """<line x1="${n(prim.x1)}" y1="${n(prim.y1)}" x2="${n(prim.x2)}" y2="${n(prim.y2)}" stroke-linecap="round"/>"""
     }
 
-    private fun svgDimension(g: DimensionGeometry, upm: Double): String {
+    private fun svgDimension(g: DimensionGeometry, upm: Double, u: UnitSystem): String {
         val c = "#374151"
         val dir = (g.end - g.start).normalized()
         val tick = (dir + g.normal) * 6.0
@@ -73,7 +73,7 @@ object ProjectIO {
         line(g.start, g.end)
         line(g.start - tick, g.start + tick)
         line(g.end - tick, g.end + tick)
-        val label = String.format(Locale.US, "%.2f", g.start.dist(g.end) / upm)
+        val label = esc(Units.lengthShort(g.start.dist(g.end) / upm, u, Locale.US))
         val m = g.labelAt(9.0)
         sb.append("""<text x="${n(m.x)}" y="${n(m.y)}" font-size="12" fill="$c" stroke="none" text-anchor="middle" dominant-baseline="middle">$label</text>""")
         sb.append("</g>")
@@ -83,7 +83,7 @@ object ProjectIO {
     /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
     fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
 
-    fun toSvg(p: Project): String {
+    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC): String {
         val pts = extentPoints(p)
         val margin = 100.0
         val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
@@ -142,11 +142,11 @@ object ProjectIO {
             if (wall.length < 40) continue
             val mid = (wall.a + wall.b) * 0.5
             val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
-            val label = String.format(Locale.US, "%.2f m", wall.length / upm)
+            val label = esc(Units.length(wall.length / upm, units, Locale.US))
             sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
         }
         for (g in Dimensions.overall(p, 50.0) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
-            sb.append(svgDimension(g, upm)).append('\n')
+            sb.append(svgDimension(g, upm, units)).append('\n')
         }
         for (l in p.labels) {
             l.tip?.let { tip ->
@@ -159,7 +159,7 @@ object ProjectIO {
         for (r in p.rooms) {
             val c = r.center ?: continue
             sb.append("""<text x="${n(c.x)}" y="${n(c.y - 8)}" font-size="16" font-weight="bold" fill="#1f2937" text-anchor="middle">${esc(r.name)}</text>""").append('\n')
-            sb.append("""<text x="${n(c.x)}" y="${n(c.y + 12)}" font-size="13" fill="#4b5563" text-anchor="middle">${String.format(Locale.US, "%.2f m²", r.areaM2)}</text>""").append('\n')
+            sb.append("""<text x="${n(c.x)}" y="${n(c.y + 12)}" font-size="13" fill="#4b5563" text-anchor="middle">${Units.area(r.areaM2, units, Locale.US)}</text>""").append('\n')
         }
         sb.append("</svg>\n")
         return sb.toString()

@@ -3,7 +3,7 @@
     <string name="app_name">Floor Planner</string>
     <string name="default_project_name">My Home Plan</string>
     <string name="project_name">Project name</string>
-    <string name="total_area">Total %1$s m² · %2$d rooms</string>
+    <string name="total_area">Total %1$s · %2$d rooms</string>
 
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
@@ -26,7 +26,7 @@
     <string name="window">Window</string>
     <string name="room">Room</string>
     <string name="length">Length</string>
-    <string name="length_m">Wall length (m)</string>
+    <string name="length_m">Wall length</string>
     <string name="thickness">Thickness</string>
     <string name="width">Width</string>
     <string name="name">Name</string>
@@ -102,7 +102,6 @@
     <string name="create">Create</string>
     <string name="delete_project">Delete project?</string>
     <string name="delete_project_warning">"%1$s" will be deleted for good.</string>
-    <string name="area_value">%1$s m²</string>
     <string name="share">Share…</string>
     <string name="export">Save as…</string>
     <string name="format_png">Image (PNG)</string>
@@ -111,7 +110,7 @@
     <string name="total">Total</string>
     <string name="msg_no_share_app">No app found to share with</string>
     <string name="start_from">Start from</string>
-    <string name="template_info">%1$s m² · %2$d rooms</string>
+    <string name="template_info">%1$s · %2$d rooms</string>
     <string name="tpl_blank">Empty plan</string>
     <string name="tpl_studio">Studio</string>
     <string name="tpl_one_bed">One-bedroom apartment</string>
@@ -142,4 +141,7 @@
     <string name="select_all">All</string>
     <string name="rotate">Rotate</string>
     <string name="mirror">Mirror</string>
+    <string name="units">Units</string>
+    <string name="units_metric">m</string>
+    <string name="units_imperial">ft</string>
 </resources>

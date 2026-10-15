@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Units
 
 /** Bottom panel with the properties of the selected wall / door / window / room. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +66,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
     val sel = vm.selection ?: return
     val p = vm.project
     val upm = p.scale.unitsPerMeter
+    val u = vm.settings.units
 
     val title: String
     val body: @Composable () -> Unit
@@ -75,13 +78,15 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             body = {
                 LabeledRow(stringResource(R.string.length)) {
                     TextButton(onClick = {
-                        openDialog(ScreenDialog.Number(lengthTitle, fmtPlain(wall.length / upm)) { vm.setWallLengthMeters(wall.id, it) })
+                        openDialog(ScreenDialog.Text(lengthTitle, Units.editValue(wall.length / upm, u)) { text ->
+                            Units.parseLength(text, u)?.let { vm.setWallLengthMeters(wall.id, it) }
+                        })
                     }) {
-                        Text(fmt(wall.length / upm) + " m")
+                        Text(Units.length(wall.length / upm, u))
                         Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
                     }
                 }
-                Stepper(stringResource(R.string.thickness), wall.thickness, 5.0, 5.0, 100.0) { vm.setWallThickness(wall.id, it) }
+                Stepper(stringResource(R.string.thickness), wall.thickness, 5.0, 5.0, 100.0, u) { vm.setWallThickness(wall.id, it) }
                 OutlinedButton(onClick = { vm.splitWall(wall.id) }) {
                     Icon(Icons.Filled.ContentCut, null)
                     Text(stringResource(R.string.split_wall), Modifier.padding(start = 8.dp))
@@ -92,7 +97,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             val door = p.door(sel.id) ?: return
             title = stringResource(R.string.door)
             body = {
-                Stepper(stringResource(R.string.width), door.width, 5.0, 30.0, 400.0) { vm.setOpeningWidth(Kind.DOOR, door.id, it) }
+                Stepper(stringResource(R.string.width), door.width, 5.0, 30.0, 400.0, u) { vm.setOpeningWidth(Kind.DOOR, door.id, it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { vm.flipDoorSide(door.id) }) {
                         Icon(Icons.Filled.SwapVert, null)
@@ -109,7 +114,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             val win = p.window(sel.id) ?: return
             title = stringResource(R.string.window)
             body = {
-                Stepper(stringResource(R.string.width), win.width, 10.0, 30.0, 1000.0) { vm.setOpeningWidth(Kind.WINDOW, win.id, it) }
+                Stepper(stringResource(R.string.width), win.width, 10.0, 30.0, 1000.0, u) { vm.setOpeningWidth(Kind.WINDOW, win.id, it) }
             }
         }
         Kind.ITEM -> {
@@ -117,8 +122,8 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             title = stringResource(furnitureName(item.type))
             val angleTitle = stringResource(R.string.rotation_deg)
             body = {
-                Stepper(stringResource(R.string.width), item.width, 5.0, 10.0, 1000.0) { vm.setItemSize(item.id, it, item.depth) }
-                Stepper(stringResource(R.string.depth), item.depth, 5.0, 10.0, 1000.0) { vm.setItemSize(item.id, item.width, it) }
+                Stepper(stringResource(R.string.width), item.width, 5.0, 10.0, 1000.0, u) { vm.setItemSize(item.id, it, item.depth) }
+                Stepper(stringResource(R.string.depth), item.depth, 5.0, 10.0, 1000.0, u) { vm.setItemSize(item.id, item.width, it) }
                 LabeledRow(stringResource(R.string.rotation)) {
                     IconButton(onClick = { vm.rotateItem(item.id, -90.0) }) { Icon(Icons.Filled.Rotate90DegreesCcw, null) }
                     TextButton(onClick = {
@@ -145,7 +150,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                         Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
                     }
                 }
-                Stepper(stringResource(R.string.text_size), l.size, 5.0, 5.0, 300.0) { vm.setLabelSize(l.id, it) }
+                Stepper(stringResource(R.string.text_size), l.size, 5.0, 5.0, 300.0, u) { vm.setLabelSize(l.id, it) }
                 if (l.tip != null) {
                     OutlinedButton(onClick = { vm.removeLabelArrow(l.id) }) {
                         Text(stringResource(R.string.remove_arrow))
@@ -158,7 +163,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             title = stringResource(R.string.measurement)
             body = {
                 LabeledRow(stringResource(R.string.length)) {
-                    Text(fmt(d.length / upm) + " m", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+                    Text(Units.length(d.length / upm, u), fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
                 }
                 Text(
                     stringResource(R.string.hint_move_dimension),
@@ -181,7 +186,7 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                     }
                 }
                 LabeledRow(stringResource(R.string.area)) {
-                    Text(fmt(room.areaM2) + " m²", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+                    Text(Units.area(room.areaM2, u), fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
                 }
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
@@ -289,12 +294,15 @@ fun materialName(key: String?): Int = when (key) {
 
 /** A "label  [-] value cm [+]" row. */
 @Composable
-fun Stepper(label: String, value: Double, step: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
+fun Stepper(
+    label: String, value: Double, step: Double, min: Double, max: Double,
+    units: UnitSystem = UnitSystem.METRIC, onChange: (Double) -> Unit,
+) {
     LabeledRow(label) {
         IconButton(onClick = { onChange((value - step).coerceIn(min, max)) }, enabled = value > min) {
             Icon(Icons.Filled.Remove, null)
         }
-        Text(fmt(value, 0) + " cm", Modifier.widthIn(min = 64.dp), textAlign = TextAlign.Center)
+        Text(Units.small(value, units), Modifier.widthIn(min = 64.dp), textAlign = TextAlign.Center)
         IconButton(onClick = { onChange((value + step).coerceIn(min, max)) }, enabled = value < max) {
             Icon(Icons.Filled.Add, null)
         }
@@ -303,6 +311,7 @@ fun Stepper(label: String, value: Double, step: Double, min: Double, max: Double
 
 private fun fmtPlain(v: Double) = String.format(java.util.Locale.US, "%.2f", v)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
     val s = vm.settings
@@ -311,15 +320,29 @@ fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
         title = { Text(stringResource(R.string.settings)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LabeledRow(stringResource(R.string.units)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = s.units == UnitSystem.METRIC,
+                            onClick = { vm.updateSettings(s.copy(units = UnitSystem.METRIC)) },
+                            label = { Text(stringResource(R.string.units_metric)) },
+                        )
+                        FilterChip(
+                            selected = s.units == UnitSystem.IMPERIAL,
+                            onClick = { vm.updateSettings(s.copy(units = UnitSystem.IMPERIAL)) },
+                            label = { Text(stringResource(R.string.units_imperial)) },
+                        )
+                    }
+                }
                 SwitchRow(stringResource(R.string.show_grid), s.showGrid) { vm.updateSettings(s.copy(showGrid = it)) }
                 SwitchRow(stringResource(R.string.show_overall), s.showOverall) { vm.updateSettings(s.copy(showOverall = it)) }
                 SwitchRow(stringResource(R.string.snap_grid), s.snap.grid) { vm.updateSettings(s.copy(snap = s.snap.copy(grid = it))) }
                 SwitchRow(stringResource(R.string.snap_endpoints), s.snap.endpoints) { vm.updateSettings(s.copy(snap = s.snap.copy(endpoints = it))) }
                 SwitchRow(stringResource(R.string.snap_angles), s.snap.angles) { vm.updateSettings(s.copy(snap = s.snap.copy(angles = it))) }
-                Stepper(stringResource(R.string.grid_size), vm.project.scale.gridCm, 5.0, 5.0, 200.0) { vm.setGridCm(it) }
-                Stepper(stringResource(R.string.default_thickness), s.wallThickness, 5.0, 5.0, 100.0) { vm.updateSettings(s.copy(wallThickness = it)) }
-                Stepper(stringResource(R.string.default_door), s.doorWidth, 5.0, 30.0, 400.0) { vm.updateSettings(s.copy(doorWidth = it)) }
-                Stepper(stringResource(R.string.default_window), s.windowWidth, 10.0, 30.0, 1000.0) { vm.updateSettings(s.copy(windowWidth = it)) }
+                Stepper(stringResource(R.string.grid_size), vm.project.scale.gridCm, 5.0, 5.0, 200.0, s.units) { vm.setGridCm(it) }
+                Stepper(stringResource(R.string.default_thickness), s.wallThickness, 5.0, 5.0, 100.0, s.units) { vm.updateSettings(s.copy(wallThickness = it)) }
+                Stepper(stringResource(R.string.default_door), s.doorWidth, 5.0, 30.0, 400.0, s.units) { vm.updateSettings(s.copy(doorWidth = it)) }
+                Stepper(stringResource(R.string.default_window), s.windowWidth, 10.0, 30.0, 1000.0, s.units) { vm.updateSettings(s.copy(windowWidth = it)) }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },

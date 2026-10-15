@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.Units
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,7 +111,7 @@ fun PlanScreen(vm: PlanViewModel) {
         write(it, vm.exportJson())
     }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
-        write(it, vm.exportSvg())
+        write(it, ProjectIO.toSvg(vm.project, vm.settings.units))
     }
 
     fun saveBytes(uri: Uri?, render: () -> ByteArray) {
@@ -192,7 +193,7 @@ fun PlanScreen(vm: PlanViewModel) {
                     Column(Modifier.clickable { dialog = ScreenDialog.RenameProject }) {
                         Text(vm.project.projectName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            stringResource(R.string.total_area, fmt(vm.project.totalAreaM2), vm.project.rooms.size),
+                            stringResource(R.string.total_area, Units.area(vm.project.totalAreaM2, vm.settings.units), vm.project.rooms.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -309,7 +310,7 @@ fun PlanScreen(vm: PlanViewModel) {
             title = stringResource(R.string.project_name), initial = vm.project.projectName,
             onDismiss = { dialog = null }, onConfirm = { vm.renameProject(it); dialog = null },
         )
-        ScreenDialog.NewProject -> NewProjectDialog(onDismiss = { dialog = null }) { p ->
+        ScreenDialog.NewProject -> NewProjectDialog(vm.settings.units, onDismiss = { dialog = null }) { p ->
             dialog = null
             vm.createProject(p.copy(scale = vm.project.scale))
         }
@@ -418,17 +419,7 @@ fun TextInputDialog(
 fun fmt(v: Double, decimals: Int = 2): String = String.format(Locale.getDefault(), "%.${decimals}f", v)
 
 /** Accepts Latin, Persian and Arabic digits and either decimal separator. */
-fun parseNumber(text: String): Double? {
-    val normalized = text.trim().map { ch ->
-        when (ch) {
-            in '۰'..'۹' -> '0' + (ch - '۰')
-            in '٠'..'٩' -> '0' + (ch - '٠')
-            '٫', ',' -> '.'
-            else -> ch
-        }
-    }.joinToString("")
-    return normalized.toDoubleOrNull()
-}
+fun parseNumber(text: String): Double? = Units.normalizeDigits(text).trim().toDoubleOrNull()
 
 @Composable
 fun LabeledRow(label: String, content: @Composable () -> Unit) {

@@ -3,7 +3,7 @@
     <string name="app_name">نقشه‌کش</string>
     <string name="default_project_name">نقشه خانه من</string>
     <string name="project_name">نام پروژه</string>
-    <string name="total_area">مجموع %1$s متر مربع · %2$d اتاق</string>
+    <string name="total_area">مجموع %1$s · %2$d اتاق</string>
 
     <string name="undo">برگرداندن</string>
     <string name="redo">انجام دوباره</string>
@@ -26,7 +26,7 @@
     <string name="window">پنجره</string>
     <string name="room">اتاق</string>
     <string name="length">طول</string>
-    <string name="length_m">طول دیوار (متر)</string>
+    <string name="length_m">طول دیوار</string>
     <string name="thickness">ضخامت</string>
     <string name="width">عرض</string>
     <string name="name">نام</string>
@@ -102,7 +102,6 @@
     <string name="create">ساختن</string>
     <string name="delete_project">پروژه حذف شود؟</string>
     <string name="delete_project_warning">«%1$s» برای همیشه حذف می‌شود.</string>
-    <string name="area_value">%1$s متر مربع</string>
     <string name="share">اشتراک‌گذاری…</string>
     <string name="export">ذخیره به‌صورت…</string>
     <string name="format_png">تصویر (PNG)</string>
@@ -111,7 +110,7 @@
     <string name="total">مجموع</string>
     <string name="msg_no_share_app">برنامه‌ای برای اشتراک‌گذاری پیدا نشد</string>
     <string name="start_from">شروع از</string>
-    <string name="template_info">%1$s متر مربع · %2$d فضا</string>
+    <string name="template_info">%1$s · %2$d فضا</string>
     <string name="tpl_blank">نقشه خالی</string>
     <string name="tpl_studio">سوییت (استودیو)</string>
     <string name="tpl_one_bed">آپارتمان یک‌خوابه</string>
@@ -142,4 +141,7 @@
     <string name="select_all">همه</string>
     <string name="rotate">چرخش</string>
     <string name="mirror">قرینه</string>
+    <string name="units">واحد</string>
+    <string name="units_metric">متر</string>
+    <string name="units_imperial">فوت</string>
 </resources>
