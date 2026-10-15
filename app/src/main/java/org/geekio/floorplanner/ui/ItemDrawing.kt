@@ -89,6 +89,30 @@ fun furnitureName(key: String): Int = when (key) {
     "water_heater" -> R.string.f_water_heater
     "boiler" -> R.string.f_boiler
     "radiator" -> R.string.f_radiator
+    "low_table" -> R.string.f_low_table
+    "side_table" -> R.string.f_side_table
+    "console_table" -> R.string.f_console_table
+    "ottoman" -> R.string.f_ottoman
+    "dining_chair" -> R.string.f_dining_chair
+    "rug" -> R.string.f_rug
+    "shoe_cabinet" -> R.string.f_shoe_cabinet
+    "piano" -> R.string.f_piano
+    "dresser" -> R.string.f_dresser
+    "dressing_table" -> R.string.f_dressing_table
+    "office_chair" -> R.string.f_office_chair
+    "bunk_bed" -> R.string.f_bunk_bed
+    "crib" -> R.string.f_crib
+    "base_cabinet" -> R.string.f_base_cabinet
+    "wall_cabinet" -> R.string.f_wall_cabinet
+    "tall_cabinet" -> R.string.f_tall_cabinet
+    "corner_cabinet" -> R.string.f_corner_cabinet
+    "dishwasher" -> R.string.f_dishwasher
+    "oven" -> R.string.f_oven
+    "range_hood" -> R.string.f_range_hood
+    "kitchen_island" -> R.string.f_kitchen_island
+    "bar_stool" -> R.string.f_bar_stool
+    "dryer" -> R.string.f_dryer
+    "vanity" -> R.string.f_vanity
     else -> R.string.f_item
 }
 

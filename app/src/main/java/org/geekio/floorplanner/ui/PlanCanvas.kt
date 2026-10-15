@@ -321,8 +321,8 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
             }
         }
 
-        // Furniture, then electrical and plumbing symbols on top
-        for (item in project.items.sortedBy { Furniture.isFixture(it) }) {
+        // Rugs, furniture, hung cabinets, then electrical and plumbing symbols on top
+        for (item in project.items.sortedBy { Furniture.layer(it) }) {
             val isSel = v.isSelected(Kind.ITEM, item.id)
             val stroke = when (Furniture.type(item.type)?.category) {
                 FurnitureCategory.ELECTRICAL -> ELECTRICAL_COLOR

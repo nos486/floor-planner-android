@@ -48,7 +48,7 @@ fun ThreeDView(project: Project, onDismiss: () -> Unit) {
     var pitch by remember { mutableStateOf(0.65) }
     var distance by remember { mutableStateOf(startDistance) }
     var low by remember { mutableStateOf(false) }
-    val faces = remember(project, low) { Scene3D.build(project, if (low) LOW_WALLS else project.wallHeight) }
+    val faces = remember(project, low) { Scene3D.split(Scene3D.build(project, if (low) LOW_WALLS else project.wallHeight)) }
     val focus = remember(target, project.wallHeight) { target.copy(z = project.wallHeight * 0.25) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -66,21 +66,15 @@ fun ThreeDView(project: Project, onDismiss: () -> Unit) {
                     drawRect(Brush.verticalGradient(listOf(Color(0xFFDCE7F2), Color(0xFFF4F1EC))))
                     val cam = Camera(focus, yaw, pitch, distance, focal = size.minDimension * 1.2)
                     val center = Offset(size.width / 2, size.height / 2)
-                    val drawn = faces.mapNotNull { f ->
-                        val pts = f.points.map { cam.project(it) ?: return@mapNotNull null }
-                        Triple(f, pts, pts.sumOf { it.depth } / pts.size)
-                    }
-                    // Floors lie under everything, the rest is painted far to near.
-                    val order = drawn.filter { it.first.kind == FaceKind.FLOOR }.sortedByDescending { it.third } +
-                        drawn.filter { it.first.kind != FaceKind.FLOOR }.sortedByDescending { it.third }
-                    for ((f, pts, _) in order) {
+                    val order = Scene3D.paintOrder(faces, cam)
+                    for ((f, pts) in order) {
                         val path = Path().apply {
                             moveTo(center.x + pts[0].x.toFloat(), center.y + pts[0].y.toFloat())
                             for (i in 1 until pts.size) lineTo(center.x + pts[i].x.toFloat(), center.y + pts[i].y.toFloat())
                             close()
                         }
                         val base = Color(f.color.toInt())
-                        val k = if (f.kind == FaceKind.FLOOR || f.kind == FaceKind.GLASS) 1f else cam.shade(f.points).toFloat()
+                        val k = if (f.kind == FaceKind.FLOOR || f.kind == FaceKind.RUG || f.kind == FaceKind.GLASS) 1f else cam.shade(f.points).toFloat()
                         drawPath(path, Color(base.red * k, base.green * k, base.blue * k, base.alpha))
                         if (f.kind != FaceKind.GLASS) drawPath(path, Color(0x22000000), style = Stroke(1f))
                     }

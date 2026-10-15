@@ -138,7 +138,7 @@ object ProjectIO {
                 sb.append("</g>\n")
             }
         }
-        for (item in p.items.sortedBy { Furniture.isFixture(it) }) {
+        for (item in p.items.sortedBy { Furniture.layer(it) }) {
             val stroke = when (Furniture.type(item.type)?.category) {
                 FurnitureCategory.ELECTRICAL -> "#d97706"
                 FurnitureCategory.PLUMBING -> "#0284c7"

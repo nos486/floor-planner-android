@@ -20,7 +20,7 @@ object PlanCheck {
     const val MIN_WIDTH_CM = 90.0
     /** Rooms smaller than this don't need a window (bathrooms, storage). */
     const val WINDOW_AREA_M2 = 6.0
-    private val tallTypes = setOf("wardrobe", "bookshelf", "fridge")
+    private val tallTypes = setOf("wardrobe", "bookshelf", "fridge", "tall_cabinet", "wall_cabinet", "bunk_bed", "piano")
 
     fun run(p: Project): List<Issue> {
         val floor = Floors.current(p)
@@ -38,7 +38,7 @@ object PlanCheck {
                 var sweep = a1 - a0
                 while (sweep > Math.PI) sweep -= 2 * Math.PI
                 while (sweep < -Math.PI) sweep += 2 * Math.PI
-                val hit = furniture.firstOrNull { item ->
+                val hit = furniture.filter { it.type !in Furniture.raised && it.type !in Furniture.flat }.firstOrNull { item ->
                     (1..5).any { ri ->
                         val r = leaf.radius * ri / 5
                         (0..9).any { ai ->
@@ -52,8 +52,10 @@ object PlanCheck {
         }
 
         // Furniture overlapping other furniture
-        val solid = furniture.filter { it.type !in setOf("plant") }
+        // Hung pieces only clash with each other; rugs lie under everything.
+        val solid = furniture.filter { it.type != "plant" && it.type !in Furniture.flat }
         for (i in solid.indices) for (j in i + 1 until solid.size) {
+            if ((solid[i].type in Furniture.raised) != (solid[j].type in Furniture.raised)) continue
             if (overlap(shrunk(solid[i]), shrunk(solid[j]))) {
                 out += Issue(IssueKind.ITEMS_OVERLAP, (P(solid[i].x, solid[i].y) + P(solid[j].x, solid[j].y)) * 0.5, solid[i].type, solid[j].type)
             }

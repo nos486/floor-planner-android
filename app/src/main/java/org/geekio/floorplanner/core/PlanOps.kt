@@ -326,7 +326,7 @@ object PlanOps {
     fun hitItem(p: Project, point: P, tolerance: Double = 0.0): Item? =
         // Small electrical and plumbing symbols sit on top of furniture and are easier to hit.
         p.items.lastOrNull { Furniture.isFixture(it) && Furniture.contains(it, point, maxOf(tolerance, FIXTURE_REACH)) }
-            ?: p.items.lastOrNull { Furniture.contains(it, point, tolerance) }
+            ?: p.items.sortedBy { Furniture.layer(it) }.lastOrNull { Furniture.contains(it, point, tolerance) }
 
     fun hitRoom(p: Project, point: P) =
         p.rooms.filter { pointInPolygon(point, it.polygon) }.minByOrNull { it.areaM2 }

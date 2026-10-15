@@ -40,21 +40,45 @@ object Furniture {
         FurnitureType("round_table", FurnitureCategory.LIVING, 140.0, 140.0),
         FurnitureType("bookshelf", FurnitureCategory.LIVING, 100.0, 35.0),
         FurnitureType("plant", FurnitureCategory.LIVING, 50.0, 50.0),
+        FurnitureType("low_table", FurnitureCategory.LIVING, 120.0, 60.0),
+        FurnitureType("side_table", FurnitureCategory.LIVING, 50.0, 50.0),
+        FurnitureType("console_table", FurnitureCategory.LIVING, 120.0, 35.0),
+        FurnitureType("ottoman", FurnitureCategory.LIVING, 50.0, 50.0),
+        FurnitureType("dining_chair", FurnitureCategory.LIVING, 45.0, 50.0),
+        FurnitureType("rug", FurnitureCategory.LIVING, 200.0, 300.0),
+        FurnitureType("shoe_cabinet", FurnitureCategory.LIVING, 100.0, 35.0),
+        FurnitureType("piano", FurnitureCategory.LIVING, 150.0, 60.0),
         FurnitureType("bed_double", FurnitureCategory.BEDROOM, 160.0, 200.0),
         FurnitureType("bed_single", FurnitureCategory.BEDROOM, 90.0, 200.0),
         FurnitureType("nightstand", FurnitureCategory.BEDROOM, 50.0, 40.0),
         FurnitureType("wardrobe", FurnitureCategory.BEDROOM, 180.0, 60.0),
         FurnitureType("desk", FurnitureCategory.BEDROOM, 120.0, 90.0),
+        FurnitureType("dresser", FurnitureCategory.BEDROOM, 120.0, 50.0),
+        FurnitureType("dressing_table", FurnitureCategory.BEDROOM, 100.0, 45.0),
+        FurnitureType("office_chair", FurnitureCategory.BEDROOM, 60.0, 60.0),
+        FurnitureType("bunk_bed", FurnitureCategory.BEDROOM, 90.0, 200.0),
+        FurnitureType("crib", FurnitureCategory.BEDROOM, 70.0, 130.0),
         FurnitureType("fridge", FurnitureCategory.KITCHEN, 70.0, 70.0),
         FurnitureType("stove", FurnitureCategory.KITCHEN, 60.0, 60.0),
         FurnitureType("kitchen_sink", FurnitureCategory.KITCHEN, 80.0, 60.0),
         FurnitureType("counter", FurnitureCategory.KITCHEN, 60.0, 60.0),
         FurnitureType("washer", FurnitureCategory.KITCHEN, 60.0, 60.0),
+        FurnitureType("base_cabinet", FurnitureCategory.KITCHEN, 60.0, 60.0),
+        FurnitureType("wall_cabinet", FurnitureCategory.KITCHEN, 60.0, 35.0),
+        FurnitureType("tall_cabinet", FurnitureCategory.KITCHEN, 60.0, 60.0),
+        FurnitureType("corner_cabinet", FurnitureCategory.KITCHEN, 90.0, 90.0),
+        FurnitureType("dishwasher", FurnitureCategory.KITCHEN, 60.0, 60.0),
+        FurnitureType("oven", FurnitureCategory.KITCHEN, 60.0, 60.0),
+        FurnitureType("range_hood", FurnitureCategory.KITCHEN, 60.0, 50.0),
+        FurnitureType("kitchen_island", FurnitureCategory.KITCHEN, 180.0, 90.0),
+        FurnitureType("bar_stool", FurnitureCategory.KITCHEN, 40.0, 40.0),
+        FurnitureType("dryer", FurnitureCategory.KITCHEN, 60.0, 60.0),
         FurnitureType("toilet", FurnitureCategory.BATHROOM, 40.0, 65.0),
         FurnitureType("squat_toilet", FurnitureCategory.BATHROOM, 45.0, 60.0),
         FurnitureType("bathtub", FurnitureCategory.BATHROOM, 170.0, 75.0),
         FurnitureType("shower", FurnitureCategory.BATHROOM, 90.0, 90.0),
         FurnitureType("basin", FurnitureCategory.BATHROOM, 55.0, 45.0),
+        FurnitureType("vanity", FurnitureCategory.BATHROOM, 80.0, 50.0),
         FurnitureType("column_square", FurnitureCategory.STRUCTURE, 30.0, 30.0),
         FurnitureType("column_round", FurnitureCategory.STRUCTURE, 30.0, 30.0),
         FurnitureType("stairs", FurnitureCategory.STRUCTURE, 100.0, 300.0),
@@ -77,7 +101,21 @@ object Furniture {
     /** Depth of one stair tread in cm. */
     const val STEP_DEPTH = 28.0
 
+    /** Types hung on the wall above the floor, which may sit over floor-standing furniture. */
+    val raised = setOf("wall_cabinet", "range_hood")
+
+    /** Types lying flat on the floor, which furniture stands on. */
+    val flat = setOf("rug")
+
     fun isFixture(item: Item) = type(item.type)?.category?.isFixture == true
+
+    /** Drawing and picking order: rugs at the bottom, then furniture, hung pieces, and symbols on top. */
+    fun layer(item: Item): Int = when {
+        isFixture(item) -> 3
+        item.type in raised -> 2
+        item.type in flat -> 0
+        else -> 1
+    }
 
     fun type(key: String): FurnitureType? = catalog.firstOrNull { it.key == key }
 
@@ -191,6 +229,27 @@ object Furniture {
                     listOf(Prim.Line(l, t + d * 0.35, r, t + d * 0.35), Prim.Line(l, t + d * 0.35, r, t + d * 0.45))
             }
             "nightstand" -> listOf(body, Prim.Circle(0.0, 0.0, minOf(w, d) * 0.25))
+            "dresser" -> listOf(body) + (1..3).map { i -> Prim.Line(l, t + d * 0.15 + (d * 0.85) * i / 4, r, t + d * 0.15 + (d * 0.85) * i / 4) } +
+                listOf(Prim.Line(0.0, t + d * 0.15, 0.0, b))
+            "dressing_table" -> listOf(body, rect(l + w * 0.3, t, w * 0.4, 4.0, fill = true), Prim.Circle(0.0, b - d * 0.35, d * 0.2))
+            "office_chair" -> {
+                val rr = minOf(w, d) / 2
+                listOf(Prim.Circle(0.0, 0.0, rr * 0.85, fill = true), rect(-rr * 0.7, t, rr * 1.4, d * 0.18, 4.0, fill = true)) +
+                    (0 until 5).map { i -> val a = Math.PI * 2 * i / 5 - Math.PI / 2; Prim.Line(0.0, 0.0, cos(a) * rr, sin(a) * rr) }
+            }
+            "bunk_bed" -> listOf(body, rect(l, t, w, 6.0, fill = true), rect(l + 8, t + 12, w - 16, minOf(d * 0.15, 30.0), 6.0), Prim.Line(l, t, r, b), Prim.Line(r - 10, t + d * 0.4, r - 10, b))
+            "crib" -> listOf(body, rect(l + 5, t + 5, w - 10, d - 10, 3.0)) + (1 until 6).map { i -> Prim.Line(l + w * i / 6, t, l + w * i / 6, t + 5) } +
+                (1 until 6).map { i -> Prim.Line(l + w * i / 6, b - 5, l + w * i / 6, b) }
+            "low_table" -> listOf(body, rect(l + 8, t + 8, w - 16, d - 16, 3.0), Prim.Line(l + 8, t + 8, r - 8, b - 8))
+            "side_table" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Circle(0.0, 0.0, minOf(w, d) * 0.3))
+            "console_table" -> listOf(body, Prim.Line(l + 6, b - 4, r - 6, b - 4))
+            "ottoman" -> listOf(rect(l, t, w, d, minOf(w, d) * 0.3, fill = true), rect(l + 6, t + 6, w - 12, d - 12, minOf(w, d) * 0.25))
+            "dining_chair" -> listOf(rect(l, t + d * 0.15, w, d * 0.85, 4.0, fill = true), rect(l, t, w, d * 0.15, 2.0, fill = true))
+            "rug" -> listOf(rect(l, t, w, d, 2.0), rect(l + 10, t + 10, w - 20, d - 20, 2.0)) +
+                (0..8).flatMap { i -> listOf(Prim.Line(l + w * i / 8, t, l + w * i / 8, t - 5), Prim.Line(l + w * i / 8, b, l + w * i / 8, b + 5)) }
+            "shoe_cabinet" -> listOf(body, Prim.Line(0.0, t, 0.0, b), Prim.Line(l, b - 4, r, b - 4))
+            "piano" -> listOf(body, rect(l + 4, t + d * 0.55, w - 8, d * 0.25, fill = false)) +
+                (1 until 14).map { i -> Prim.Line(l + 4 + (w - 8) * i / 14, t + d * 0.55, l + 4 + (w - 8) * i / 14, t + d * 0.8) }
             "wardrobe" -> listOf(body, Prim.Line(0.0, t, 0.0, b), Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
             "desk" -> {
                 val top = d * 0.6
@@ -210,6 +269,20 @@ object Furniture {
             "kitchen_sink" -> listOf(body, rect(l + 8, t + 8, w - 16, d - 16, 6.0), Prim.Circle(0.0, t + 5, 2.5, fill = true))
             "counter" -> listOf(body, Prim.Line(l, t + 4, r, t + 4))
             "washer" -> listOf(body, Prim.Circle(0.0, 4.0, minOf(w, d) * 0.32), Prim.Line(l, t + 10, r, t + 10))
+            "dryer" -> listOf(body, Prim.Circle(0.0, 4.0, minOf(w, d) * 0.32), Prim.Circle(0.0, 4.0, minOf(w, d) * 0.18), Prim.Line(l, t + 10, r, t + 10))
+            "base_cabinet" -> listOf(body, Prim.Line(l, b - 4, r, b - 4)) + (if (w > 50) listOf(Prim.Line(0.0, b - 4, 0.0, b)) else emptyList())
+            // Hung above the counter: drawn dashed-style as an outline with a cross so what is under it shows through.
+            "wall_cabinet" -> listOf(rect(l, t, w, d), Prim.Line(l, t, r, b))
+            "range_hood" -> listOf(rect(l, t, w, d), Prim.Line(l, b, l + w * 0.3, t), Prim.Line(r, b, r - w * 0.3, t), Prim.Line(l + w * 0.3, t, r - w * 0.3, t))
+            "tall_cabinet" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
+            "corner_cabinet" -> {
+                val arm = minOf(w, d) * 0.66
+                listOf(rect(l, t, w, arm, 2.0, fill = true), rect(l, t, arm, d, 2.0, fill = true), Prim.Line(l + arm, t + arm, r, t + arm))
+            }
+            "dishwasher" -> listOf(body, rect(l + 6, t + 14, w - 12, d - 20, 2.0), Prim.Line(l, t + 10, r, t + 10))
+            "oven" -> listOf(body, rect(l + 8, t + d * 0.35, w - 16, d * 0.5, 3.0), Prim.Line(l + 8, t + d * 0.2, r - 8, t + d * 0.2))
+            "kitchen_island" -> listOf(body, rect(l + 6, t + 6, w - 12, d - 12, 2.0))
+            "bar_stool" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Circle(0.0, 0.0, minOf(w, d) * 0.3))
             "toilet" -> listOf(
                 rect(l, t, w, d * 0.3, 4.0, fill = true),
                 rect(l + w * 0.1, t + d * 0.3, w * 0.8, d * 0.7, w * 0.4, fill = true),
@@ -223,6 +296,7 @@ object Furniture {
             "bathtub" -> listOf(body, rect(l + 8, t + 8, w - 16, d - 16, minOf(w, d) * 0.3), Prim.Circle(l + 20, 0.0, 3.0, fill = true))
             "shower" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t), Prim.Circle(0.0, 0.0, 4.0, fill = true))
             "basin" -> listOf(body, rect(l + w * 0.15, t + d * 0.25, w * 0.7, d * 0.6, minOf(w, d) * 0.3), Prim.Circle(0.0, t + d * 0.12, 2.5, fill = true))
+            "vanity" -> listOf(body, rect(-minOf(w, 50.0) / 2 + 4, t + d * 0.2, minOf(w, 50.0) - 8, d * 0.6, minOf(w, d) * 0.2), Prim.Circle(0.0, t + d * 0.1, 2.5, fill = true))
             "column_square" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
             "column_round" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Line(-minOf(w, d) * 0.35, -minOf(w, d) * 0.35, minOf(w, d) * 0.35, minOf(w, d) * 0.35))
             "stairs" -> {
