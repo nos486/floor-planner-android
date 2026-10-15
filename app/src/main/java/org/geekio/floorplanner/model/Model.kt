@@ -18,6 +18,13 @@ data class Project(
     val items: List<Item> = emptyList(),
     val dimensions: List<Dimension> = emptyList(),
     val labels: List<Label> = emptyList(),
+    /**
+     * Every floor of a multi-storey plan, empty for a single floor. The floor at [floorIndex] is only a
+     * placeholder (id and name): its content is the top-level walls, rooms and so on above, so the
+     * editing code and older readers of the format only ever see one floor.
+     */
+    val floors: List<Floor> = emptyList(),
+    val floorIndex: Int = 0,
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
@@ -138,3 +145,17 @@ data class Label(
     val anchor: P get() = P(x, y)
     val tip: P? get() = arrow?.takeIf { it.size >= 2 }?.let { P.of(it) }
 }
+
+/** One storey of a building; see [Project.floors]. */
+@Serializable
+data class Floor(
+    val id: String,
+    val name: String,
+    val walls: List<Wall> = emptyList(),
+    val doors: List<Door> = emptyList(),
+    val windows: List<PlanWindow> = emptyList(),
+    val rooms: List<Room> = emptyList(),
+    val items: List<Item> = emptyList(),
+    val dimensions: List<Dimension> = emptyList(),
+    val labels: List<Label> = emptyList(),
+)

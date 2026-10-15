@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.GroupOps
 import org.geekio.floorplanner.core.FurnitureType
@@ -384,6 +385,24 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRoomFloor(id: String, floor: String?) = commit(PlanOps.setRoomFloor(project, id, floor))
 
+    // ---------------- Floors ----------------
+
+    private fun onFloor(p: Project) {
+        selection = null
+        group = emptySet()
+        draft = null
+        commit(p)
+    }
+
+    fun switchFloor(index: Int) = onFloor(Floors.switchTo(project, index))
+
+    /** Adds a floor on top and opens it; [firstName] names the existing floor when the plan had only one. */
+    fun addFloor(name: String, firstName: String) = onFloor(Floors.add(project, name, firstName))
+
+    fun deleteFloor(index: Int) = onFloor(Floors.delete(project, index))
+
+    fun renameFloor(index: Int, name: String) = commit(Floors.rename(project, index, name))
+
     // ---------------- Labels ----------------
 
     var labelRequest by mutableStateOf<LabelRequest?>(null)
@@ -449,7 +468,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Viewport ----------------
 
-    fun view() = PlanView(project, pan, zoom, settings, selection, draft, group)
+    fun view() = PlanView(project, pan, zoom, settings, selection, draft, group, Floors.below(project))
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)

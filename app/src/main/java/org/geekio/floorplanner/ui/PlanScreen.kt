@@ -284,9 +284,12 @@ fun PlanScreen(vm: PlanViewModel) {
                     colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
                 )
             }
+            if (!vm.multiSelect) {
+                FloorMenu(vm, { dialog = it }, Modifier.align(Alignment.TopEnd).padding(8.dp))
+            }
             if (vm.project.walls.isEmpty() && vm.tool == Tool.WALL) {
                 Surface(
-                    Modifier.align(Alignment.TopCenter).padding(12.dp),
+                    Modifier.align(Alignment.BottomCenter).padding(12.dp),
                     shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {

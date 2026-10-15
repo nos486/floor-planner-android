@@ -1,5 +1,6 @@
 package org.geekio.floorplanner.core
 
+import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.Project
 import kotlinx.serialization.json.Json
 import java.util.Locale
@@ -18,25 +19,41 @@ object ProjectIO {
     /** Parses a project file; returns null when it isn't a valid floor plan. */
     fun fromJson(text: String): Project? = try {
         val p = json.decodeFromString(Project.serializer(), text)
-        val walls = p.walls.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } }
-        val wallIds = walls.map { it.id }.toSet()
+        val top = clean(Floor("", "", p.walls, p.doors, p.windows, p.rooms, p.items, p.dimensions, p.labels))
         PlanOps.withRooms(
             p.copy(
                 scale = p.scale.copy(
                     unitsPerMeter = p.scale.unitsPerMeter.takeIf { it > 0 } ?: 100.0,
                     gridCm = p.scale.gridCm.takeIf { it > 0 } ?: 20.0,
                 ),
-                walls = walls,
-                doors = p.doors.filter { it.wallId in wallIds },
-                windows = p.windows.filter { it.wallId in wallIds },
-                rooms = p.rooms.filter { it.centroid.size >= 2 },
-                items = p.items.filter { it.width > 0 && it.depth > 0 },
-                labels = p.labels.filter { it.text.isNotBlank() && it.size > 0 },
-                dimensions = p.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
+                walls = top.walls,
+                doors = top.doors,
+                windows = top.windows,
+                rooms = top.rooms,
+                items = top.items,
+                labels = top.labels,
+                dimensions = top.dimensions,
+                floors = p.floors.map(::clean),
+                floorIndex = p.floorIndex.coerceIn(0, maxOf(0, p.floors.size - 1)),
             )
         )
     } catch (e: Exception) {
         null
+    }
+
+    /** Drops broken entries (walls without two points, doors on missing walls, and so on). */
+    private fun clean(f: Floor): Floor {
+        val walls = f.walls.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } }
+        val wallIds = walls.map { it.id }.toSet()
+        return f.copy(
+            walls = walls,
+            doors = f.doors.filter { it.wallId in wallIds },
+            windows = f.windows.filter { it.wallId in wallIds },
+            rooms = f.rooms.filter { it.centroid.size >= 2 },
+            items = f.items.filter { it.width > 0 && it.depth > 0 },
+            labels = f.labels.filter { it.text.isNotBlank() && it.size > 0 },
+            dimensions = f.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
+        )
     }
 
     fun fileName(p: Project, ext: String): String {

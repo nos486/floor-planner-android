@@ -37,6 +37,7 @@ import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
 import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.model.Door
+import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.PlanWindow
 import org.geekio.floorplanner.model.Project
 import java.util.Locale
@@ -56,6 +57,8 @@ class PlanView(
     val selection: Selection? = null,
     val draft: Draft? = null,
     val group: Set<Selection> = emptySet(),
+    /** The floor below, drawn faintly so walls can be lined up. */
+    val below: Floor? = null,
 ) {
     fun isSelected(kind: Kind, id: String) =
         (selection?.kind == kind && selection.id == id) || Selection(kind, id) in group ||
@@ -211,6 +214,13 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         translate(v.pan.x, v.pan.y)
         scale(zoom, zoom, pivot = Offset.Zero)
     }) {
+        // Walls of the floor below
+        v.below?.let { below ->
+            for (wall in below.walls) {
+                drawLine(colors.wall.copy(alpha = 0.13f), wall.a.o(), wall.b.o(), wall.thickness.toFloat(), cap = StrokeCap.Round)
+            }
+        }
+
         // Rooms
         project.rooms.forEachIndexed { i, room ->
             val poly = room.polygon

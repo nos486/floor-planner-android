@@ -144,4 +144,9 @@
     <string name="units">Units</string>
     <string name="units_metric">m</string>
     <string name="units_imperial">ft</string>
+    <string name="floor_n">Floor %1$d</string>
+    <string name="floor_name">Floor name</string>
+    <string name="add_floor">Add floor</string>
+    <string name="rename_floor">Rename floor</string>
+    <string name="delete_floor">Delete floor</string>
 </resources>

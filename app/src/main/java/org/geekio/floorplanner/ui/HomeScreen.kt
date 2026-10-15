@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Floors
 import org.geekio.floorplanner.core.ProjectEntry
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.UnitSystem
@@ -218,7 +219,7 @@ private fun ProjectCard(entry: ProjectEntry, units: UnitSystem, onOpen: () -> Un
             Column(Modifier.weight(1f).padding(start = 12.dp, bottom = 10.dp)) {
                 Text(entry.project.projectName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    Units.area(entry.project.totalAreaM2, units) + " · " +
+                    Units.area(Floors.totalAreaM2(entry.project), units) + " · " +
                         DateUtils.getRelativeTimeSpanString(entry.modified).toString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = cs.onSurfaceVariant,

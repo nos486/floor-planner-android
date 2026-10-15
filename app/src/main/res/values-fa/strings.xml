@@ -144,4 +144,9 @@
     <string name="units">واحد</string>
     <string name="units_metric">متر</string>
     <string name="units_imperial">فوت</string>
+    <string name="floor_n">طبقه %1$d</string>
+    <string name="floor_name">نام طبقه</string>
+    <string name="add_floor">افزودن طبقه</string>
+    <string name="rename_floor">تغییر نام طبقه</string>
+    <string name="delete_floor">حذف طبقه</string>
 </resources>
