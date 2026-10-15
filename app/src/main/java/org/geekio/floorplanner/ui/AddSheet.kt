@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +58,10 @@ fun AddSheet(vm: PlanViewModel, onDismiss: () -> Unit) {
                 ) {
                     ToolChip(Icons.Filled.Straighten, R.string.tool_measure) {
                         vm.selectTool(Tool.MEASURE)
+                        onDismiss()
+                    }
+                    ToolChip(Icons.Filled.TextFields, R.string.tool_text) {
+                        vm.selectTool(Tool.TEXT)
                         onDismiss()
                     }
                 }

@@ -131,4 +131,9 @@
     <string name="mat_mosaic">Small tiles</string>
     <string name="mat_stone">Stone</string>
     <string name="mat_carpet">Carpet</string>
+    <string name="tool_text">Text</string>
+    <string name="label">Label</string>
+    <string name="label_text">Text</string>
+    <string name="text_size">Text size</string>
+    <string name="remove_arrow">Remove arrow</string>
 </resources>

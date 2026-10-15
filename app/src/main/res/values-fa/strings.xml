@@ -131,4 +131,9 @@
     <string name="mat_mosaic">کاشی ریز</string>
     <string name="mat_stone">سنگ</string>
     <string name="mat_carpet">موکت</string>
+    <string name="tool_text">متن</string>
+    <string name="label">برچسب</string>
+    <string name="label_text">متن</string>
+    <string name="text_size">اندازه متن</string>
+    <string name="remove_arrow">حذف فلش</string>
 </resources>

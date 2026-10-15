@@ -128,6 +128,10 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.b))
         }
 
+        (vm.draft as? Draft.ArrowDraft)?.let { d ->
+            drawArrow(vm.toScreen(d.a), vm.toScreen(d.b), colors.selected, 2.dp.toPx(), 12.dp.toPx())
+            drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
+        }
         (vm.draft as? Draft.WallDraft)?.let { d ->
             val upm = project.scale.unitsPerMeter
             drawTag(textMeasurer, String.format(Locale.getDefault(), "%.2f m", d.a.dist(d.b) / upm),
@@ -256,7 +260,7 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
                 else drawWindow(v, PlanWindow("draft", d.wallId, d.offset, d.width), true, colors, px, ghost = true)
             }
             // Drawn on top in screen space below.
-            is Draft.MeasureDraft, null -> Unit
+            is Draft.MeasureDraft, is Draft.ArrowDraft, null -> Unit
         }
     }
 
@@ -273,6 +277,46 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         drawDimensionLine(v, g, tm, if (isSel) colors.selected else colors.label, colors)
     }
     drawRoomLabels(v, tm, colors)
+    drawLabels(v, tm, colors)
+}
+
+private fun DrawScope.drawLabels(v: PlanView, tm: TextMeasurer, c: PlanColors) {
+    for (l in v.project.labels) {
+        val fontPx = (l.size * v.zoom).toFloat()
+        if (fontPx < 4f) continue
+        val selected = v.selection?.kind == Kind.LABEL && v.selection.id == l.id
+        val color = if (selected) c.selected else c.label
+        val anchor = v.toScreen(l.anchor)
+        l.tip?.let { tip -> drawArrow(anchor, v.toScreen(tip), color, maxOf(1.5f, fontPx * 0.08f), fontPx * 0.6f) }
+        val layout = tm.measure(l.text, TextStyle(fontSize = fontPx.toSp(), color = color, fontWeight = FontWeight.Medium))
+        val tl = anchor - Offset(layout.size.width / 2f, layout.size.height / 2f)
+        val pad = fontPx * 0.2f
+        drawRoundRect(
+            c.labelBg, tl - Offset(pad, pad / 2),
+            Size(layout.size.width + 2 * pad, layout.size.height + pad), CornerRadius(pad),
+        )
+        if (selected) {
+            drawRoundRect(
+                c.selected, tl - Offset(pad, pad / 2),
+                Size(layout.size.width + 2 * pad, layout.size.height + pad), CornerRadius(pad), style = Stroke(1.5f),
+            )
+        }
+        drawText(layout, topLeft = tl)
+    }
+}
+
+/** A line from [from] to [tip] with a filled head of length [head], all in screen pixels. */
+fun DrawScope.drawArrow(from: Offset, tip: Offset, color: Color, width: Float, head: Float) {
+    if ((tip - from).getDistance() < 1f) return
+    drawLine(color, from, tip, width, cap = StrokeCap.Round)
+    val (h1, h2) = PlanOps.arrowHead(P(from.x.toDouble(), from.y.toDouble()), P(tip.x.toDouble(), tip.y.toDouble()), head.toDouble())
+    val path = Path().apply {
+        moveTo(tip.x, tip.y)
+        lineTo(h1.x.toFloat(), h1.y.toFloat())
+        lineTo(h2.x.toFloat(), h2.y.toFloat())
+        close()
+    }
+    drawPath(path, color)
 }
 
 private fun DrawScope.drawDoor(v: PlanView, door: Door, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {

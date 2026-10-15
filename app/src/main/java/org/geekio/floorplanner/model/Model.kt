@@ -17,6 +17,7 @@ data class Project(
     val rooms: List<Room> = emptyList(),
     val items: List<Item> = emptyList(),
     val dimensions: List<Dimension> = emptyList(),
+    val labels: List<Label> = emptyList(),
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }
@@ -24,6 +25,7 @@ data class Project(
     fun room(id: String) = rooms.firstOrNull { it.id == id }
     fun item(id: String) = items.firstOrNull { it.id == id }
     fun dimension(id: String) = dimensions.firstOrNull { it.id == id }
+    fun label(id: String) = labels.firstOrNull { it.id == id }
 
     val totalAreaM2: Double get() = rooms.sumOf { it.areaM2 }
 }
@@ -118,4 +120,21 @@ data class Dimension(
     val a: P get() = P.of(points[0])
     val b: P get() = P.of(points[1])
     val length: Double get() = a.dist(b)
+}
+
+/**
+ * A text note on the plan, centred on ([x], [y]). [size] is the text height in world units, so it scales with
+ * the plan. When [arrow] is set, an arrow points from the text to that point.
+ */
+@Serializable
+data class Label(
+    val id: String,
+    val text: String,
+    val x: Double,
+    val y: Double,
+    val size: Double = 25.0,
+    val arrow: List<Double>? = null,
+) {
+    val anchor: P get() = P(x, y)
+    val tip: P? get() = arrow?.takeIf { it.size >= 2 }?.let { P.of(it) }
 }

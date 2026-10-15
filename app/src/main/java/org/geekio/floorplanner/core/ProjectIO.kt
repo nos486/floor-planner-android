@@ -31,6 +31,7 @@ object ProjectIO {
                 windows = p.windows.filter { it.wallId in wallIds },
                 rooms = p.rooms.filter { it.centroid.size >= 2 },
                 items = p.items.filter { it.width > 0 && it.depth > 0 },
+                labels = p.labels.filter { it.text.isNotBlank() && it.size > 0 },
                 dimensions = p.dimensions.filter { it.points.size >= 2 && it.points.all { pt -> pt.size >= 2 } },
             )
         )
@@ -146,6 +147,14 @@ object ProjectIO {
         }
         for (g in Dimensions.overall(p, 50.0) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
             sb.append(svgDimension(g, upm)).append('\n')
+        }
+        for (l in p.labels) {
+            l.tip?.let { tip ->
+                val (h1, h2) = PlanOps.arrowHead(l.anchor, tip, l.size * 0.6)
+                sb.append("""<line x1="${n(l.x)}" y1="${n(l.y)}" x2="${n(tip.x)}" y2="${n(tip.y)}" stroke="#1f2937" stroke-width="${n(l.size * 0.08)}"/>""")
+                sb.append("""<polygon points="${n(tip.x)},${n(tip.y)} ${n(h1.x)},${n(h1.y)} ${n(h2.x)},${n(h2.y)}" fill="#1f2937"/>""").append('\n')
+            }
+            sb.append("""<text x="${n(l.x)}" y="${n(l.y)}" font-size="${n(l.size)}" fill="#1f2937" stroke="#ffffff" stroke-width="${n(l.size * 0.15)}" paint-order="stroke" text-anchor="middle" dominant-baseline="middle">${esc(l.text)}</text>""").append('\n')
         }
         for (r in p.rooms) {
             val c = r.center ?: continue

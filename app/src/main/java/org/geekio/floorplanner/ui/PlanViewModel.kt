@@ -33,14 +33,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-enum class Tool { SELECT, WALL, DOOR, WINDOW, MEASURE }
+enum class Tool { SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT }
 
 /** Something being drawn that is not part of the project yet. */
 sealed interface Draft {
     data class WallDraft(val a: P, val b: P, val snap: SnapType) : Draft
     data class OpeningDraft(val wallId: String, val offset: Double, val width: Double, val isDoor: Boolean) : Draft
     data class MeasureDraft(val a: P, val b: P, val snap: SnapType) : Draft
+    data class ArrowDraft(val a: P, val b: P) : Draft
 }
+
+/** A label waiting for its text: shown as a dialog, then added at [at] with an arrow to [tip] if set. */
+data class LabelRequest(val at: P, val tip: P?)
 
 data class Settings(
     val showGrid: Boolean = true,
@@ -49,6 +53,8 @@ data class Settings(
     val wallThickness: Double = 20.0,
     val doorWidth: Double = 90.0,
     val windowWidth: Double = 120.0,
+    /** Text height of new labels, in cm. */
+    val labelSize: Double = 25.0,
 )
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
@@ -125,6 +131,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 Kind.ROOM -> project.room(sel.id) != null
                 Kind.ITEM -> project.item(sel.id) != null
                 Kind.DIMENSION -> project.dimension(sel.id) != null
+                Kind.LABEL -> project.label(sel.id) != null
             }
             if (!exists) selection = null
         }
@@ -294,6 +301,30 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRoomFloor(id: String, floor: String?) = commit(PlanOps.setRoomFloor(project, id, floor))
 
+    // ---------------- Labels ----------------
+
+    var labelRequest by mutableStateOf<LabelRequest?>(null)
+
+    fun addLabel(text: String) {
+        val req = labelRequest ?: return
+        labelRequest = null
+        val (p, label) = PlanOps.addLabel(project, text, req.at, settings.labelSize, req.tip) ?: return
+        commit(p)
+        selection = Selection(Kind.LABEL, label.id)
+    }
+
+    fun setLabelText(id: String, text: String) {
+        if (text.isBlank()) return
+        commit(PlanOps.updateLabel(project, id) { it.copy(text = text.trim()) })
+    }
+
+    fun setLabelSize(id: String, size: Double) {
+        commit(PlanOps.updateLabel(project, id) { it.copy(size = size) })
+        settings = settings.copy(labelSize = size)
+    }
+
+    fun removeLabelArrow(id: String) = commit(PlanOps.updateLabel(project, id) { it.copy(arrow = null) })
+
     // ---------------- Furniture ----------------
 
     /** Adds a [type] item in the middle of the screen (against a wall if one is close) and selects it. */
@@ -388,6 +419,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         data class MoveWall(val origin: Project, val wallId: String, val startWorld: P) : DragOp
         data class SlideOpening(val origin: Project, val kind: Kind, val id: String, val grab: Double) : DragOp
         data class DrawMeasure(val start: P) : DragOp
+        data class DrawArrow(val start: P) : DragOp
+        data class MoveLabel(val origin: Project, val id: String, val startWorld: P) : DragOp
         data class MoveDimension(val origin: Project, val id: String) : DragOp
         data class MoveItem(val origin: Project, val id: String, val grab: P) : DragOp
         data class RotateItem(val origin: Project, val id: String) : DragOp
@@ -406,6 +439,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             Tool.SELECT -> selection = PlanOps.hit(project, w, worldTol(HIT_DP))
             Tool.WALL -> message = R.string.hint_wall
             Tool.MEASURE -> message = R.string.hint_measure
+            Tool.TEXT -> labelRequest = LabelRequest(w, null)
             Tool.DOOR, Tool.WINDOW -> {
                 updateOpeningDraft(w, tool == Tool.DOOR)
                 placeOpeningDraft()
@@ -429,6 +463,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val s = snap(w)
                 draft = Draft.MeasureDraft(s.point, s.point, s.type)
                 DragOp.DrawMeasure(s.point)
+            }
+            Tool.TEXT -> {
+                draft = Draft.ArrowDraft(w, w)
+                DragOp.DrawArrow(w)
             }
             Tool.SELECT -> selectDragStart(screen, w)
         }
@@ -460,6 +498,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val along = (w - wall.a).dot((wall.b - wall.a).normalized())
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
+        }
+        PlanOps.hitLabel(project, w, tol)?.let { l ->
+            selection = Selection(Kind.LABEL, l.id)
+            return DragOp.MoveLabel(project, l.id, w)
         }
         Dimensions.hit(project, w, tol)?.let { d ->
             selection = Selection(Kind.DIMENSION, d.id)
@@ -512,6 +554,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 val s = snap(w, start = op.start, exclude = op.start)
                 draft = Draft.MeasureDraft(op.start, s.point, s.type)
             }
+            is DragOp.DrawArrow -> draft = Draft.ArrowDraft(op.start, w)
+            is DragOp.MoveLabel -> project = PlanOps.moveLabel(op.origin, op.id, w - op.startWorld)
             is DragOp.MoveDimension -> {
                 val d = op.origin.dimension(op.id) ?: return
                 project = PlanOps.setDimensionOffset(op.origin, op.id, Dimensions.offsetThrough(d, w))
@@ -559,6 +603,13 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is DragOp.MoveDimension -> commit(project, before = op.origin)
+            is DragOp.MoveLabel -> commit(project, before = op.origin)
+            is DragOp.DrawArrow -> {
+                val d = draft as? Draft.ArrowDraft
+                draft = null
+                // The text goes where the drag started, the arrow points to where it ended.
+                if (d != null) labelRequest = LabelRequest(d.a, d.b.takeIf { it.dist(d.a) > worldTol(HIT_DP) })
+            }
             is DragOp.MoveItem -> commit(project, before = op.origin)
             is DragOp.RotateItem -> commit(project, before = op.origin)
             is DragOp.Pan, null -> Unit
@@ -573,6 +624,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.SlideOpening -> project = op.origin
             is DragOp.MoveItem -> project = op.origin
             is DragOp.MoveDimension -> project = op.origin
+            is DragOp.MoveLabel -> project = op.origin
             is DragOp.RotateItem -> project = op.origin
             else -> Unit
         }

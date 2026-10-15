@@ -127,6 +127,27 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                 }
             }
         }
+        Kind.LABEL -> {
+            val l = p.label(sel.id) ?: return
+            title = stringResource(R.string.label)
+            val textTitle = stringResource(R.string.label_text)
+            body = {
+                LabeledRow(stringResource(R.string.label_text)) {
+                    TextButton(onClick = {
+                        openDialog(ScreenDialog.Text(textTitle, l.text) { vm.setLabelText(l.id, it) })
+                    }) {
+                        Text(l.text, maxLines = 1, modifier = Modifier.widthIn(max = 180.dp))
+                        Icon(Icons.Filled.Edit, null, Modifier.padding(start = 6.dp))
+                    }
+                }
+                Stepper(stringResource(R.string.text_size), l.size, 5.0, 5.0, 300.0) { vm.setLabelSize(l.id, it) }
+                if (l.tip != null) {
+                    OutlinedButton(onClick = { vm.removeLabelArrow(l.id) }) {
+                        Text(stringResource(R.string.remove_arrow))
+                    }
+                }
+            }
+        }
         Kind.DIMENSION -> {
             val d = p.dimension(sel.id) ?: return
             title = stringResource(R.string.measurement)
