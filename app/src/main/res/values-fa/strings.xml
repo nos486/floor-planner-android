@@ -231,4 +231,12 @@
     <string name="issue_narrow">عرض %1$s فقط %2$s است</string>
     <string name="issue_no_door">%1$s در ندارد</string>
     <string name="issue_no_window">%1$s پنجره ندارد</string>
+    <string name="sunlight">نور خورشید</string>
+    <string name="sun_height">خورشید %1$d درجه بالای افق</string>
+    <string name="sun_down">خورشید غروب کرده</string>
+    <string name="north">شمال</string>
+    <string name="latitude">عرض جغرافیایی (درجه)</string>
+    <string name="latitude_value">عرض %1$s</string>
+    <string name="sun_hours_title">آفتاب مستقیم در این ماه</string>
+    <string name="sun_hours">%1$s: %2$s ساعت</string>
 </resources>

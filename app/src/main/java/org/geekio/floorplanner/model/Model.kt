@@ -30,6 +30,12 @@ data class Project(
     val costs: Costs = Costs(),
     /** Placement of a photo of a paper plan under the drawing; the image itself is kept next to the project file. */
     val background: Background? = null,
+    /** Direction of north on the plan, in degrees clockwise from the top of the screen. */
+    val north: Double = 0.0,
+    /** Latitude of the home in degrees (positive north), for the sunlight view. */
+    val latitude: Double = 35.7,
+    /** Asking price of the home, for the home buyer summary; null when not set. */
+    val price: Double? = null,
 ) {
     fun wall(id: String) = walls.firstOrNull { it.id == id }
     fun door(id: String) = doors.firstOrNull { it.id == id }

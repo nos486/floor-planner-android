@@ -40,6 +40,7 @@ import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
 import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.Sun
 import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.core.Walls
 import org.geekio.floorplanner.model.Door
@@ -146,6 +147,7 @@ fun PlanCanvas(vm: PlanViewModel, modifier: Modifier = Modifier) {
         drawPlan(v, colors, textMeasurer)
         val project = v.project
         val sel = v.selection
+        if (vm.sunlight) drawSunlight(vm, project, textMeasurer, colors)
         (vm.draft as? Draft.MeasureDraft)?.let { d ->
             Dimensions.geometry(d.a, d.b, 0.0)?.let { drawDimensionLine(v, it, textMeasurer, colors.selected, colors) }
             drawCircle(colors.selected, 5.dp.toPx(), vm.toScreen(d.a))
@@ -558,4 +560,47 @@ private fun DrawScope.drawTag(tm: TextMeasurer, text: String, center: Offset, bg
         Size(layout.size.width + 16.dp.toPx(), layout.size.height + 8.dp.toPx()), CornerRadius(8.dp.toPx()),
     )
     drawText(layout, topLeft = tl)
+}
+
+val SUN_COLOR = Color(0xFFFACC15)
+
+/** Light patches through the windows, clipped to their rooms, and a compass with the sun's direction. */
+private fun DrawScope.drawSunlight(vm: PlanViewModel, project: Project, tm: TextMeasurer, colors: PlanColors) {
+    for (patch in vm.lightPatches) {
+        val room = project.room(patch.roomId) ?: continue
+        val roomPath = Path().apply {
+            room.polygon.forEachIndexed { i, pt -> vm.toScreen(pt).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
+            close()
+        }
+        val light = Path().apply {
+            patch.polygon.forEachIndexed { i, pt -> vm.toScreen(pt).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
+            close()
+        }
+        clipPath(roomPath) {
+            drawPath(light, SUN_COLOR.copy(alpha = 0.45f))
+            drawPath(light, SUN_COLOR, style = Stroke(1.dp.toPx()))
+        }
+    }
+
+    // Compass in the top-left corner
+    val r = 30.dp.toPx()
+    val c = Offset(16.dp.toPx() + r, 16.dp.toPx() + r)
+    drawCircle(colors.labelBg, r + 6.dp.toPx(), c)
+    drawCircle(colors.dim, r, c, style = Stroke(1.dp.toPx()))
+    val n = Sun.northVector(project)
+    val tip = c + Offset((n.x * r).toFloat(), (n.y * r).toFloat())
+    drawArrow(c - Offset((n.x * r * 0.6).toFloat(), (n.y * r * 0.6).toFloat()), tip, colors.label, 2.dp.toPx(), 9.dp.toPx())
+    val nText = tm.measure("N", TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colors.label))
+    val nAt = c + Offset((n.x * (r + 12.dp.toPx())).toFloat(), (n.y * (r + 12.dp.toPx())).toFloat())
+    drawRoundRect(colors.labelBg, nAt - Offset(8.dp.toPx(), 8.dp.toPx()), Size(16.dp.toPx(), 16.dp.toPx()), CornerRadius(8.dp.toPx()))
+    drawText(nText, topLeft = nAt - Offset(nText.size.width / 2f, nText.size.height / 2f))
+    val sun = vm.sunPosition
+    if (sun.isUp) {
+        val s = Sun.towardSun(project, sun)
+        // Nearer the middle the higher the sun is.
+        val k = r * kotlin.math.cos(Math.toRadians(sun.elevation)).toFloat()
+        val at = c + Offset((s.x * k).toFloat(), (s.y * k).toFloat())
+        drawCircle(SUN_COLOR, 7.dp.toPx(), at)
+        drawCircle(Color(0xFFB45309), 7.dp.toPx(), at, style = Stroke(1.5f.dp.toPx()))
+    }
 }

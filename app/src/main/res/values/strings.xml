@@ -231,4 +231,12 @@
     <string name="issue_narrow">%1$s is only %2$s wide</string>
     <string name="issue_no_door">%1$s has no door</string>
     <string name="issue_no_window">%1$s has no window</string>
+    <string name="sunlight">Sunlight</string>
+    <string name="sun_height">Sun %1$d° above the horizon</string>
+    <string name="sun_down">The sun is down</string>
+    <string name="north">North</string>
+    <string name="latitude">Latitude (degrees)</string>
+    <string name="latitude_value">Latitude %1$s</string>
+    <string name="sun_hours_title">Direct sun this month</string>
+    <string name="sun_hours">%1$s: %2$s h</string>
 </resources>

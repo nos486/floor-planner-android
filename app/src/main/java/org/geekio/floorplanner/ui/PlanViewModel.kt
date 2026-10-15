@@ -20,6 +20,10 @@ import org.geekio.floorplanner.core.Backgrounds
 import org.geekio.floorplanner.core.Compare
 import org.geekio.floorplanner.core.Dimensions
 import org.geekio.floorplanner.core.Issue
+import org.geekio.floorplanner.core.LightPatch
+import org.geekio.floorplanner.core.RoomSun
+import org.geekio.floorplanner.core.Sun
+import org.geekio.floorplanner.core.SunPosition
 import org.geekio.floorplanner.core.PlanCheck
 import org.geekio.floorplanner.core.PlanDiff
 import org.geekio.floorplanner.core.Floors
@@ -299,6 +303,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         selection = null
         multiSelect = false
         group = emptySet()
+        sunlight = false
         checking = true
         if (issues.isEmpty()) {
             checking = false
@@ -314,6 +319,60 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun focusIssue(issue: Issue) {
         pan = Offset(viewSize.width / 2f - (issue.at.x * zoom).toFloat(), viewSize.height / 2f - (issue.at.y * zoom).toFloat())
     }
+
+    // ---------------- Sunlight ----------------
+
+    /** True while the sunlight view is open. */
+    var sunlight by mutableStateOf(false)
+        private set
+    var sunMonth by mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1)
+        private set
+    /** Local solar time, 12 = noon. */
+    var sunHour by mutableStateOf(12.0)
+        private set
+
+    val sunPosition: SunPosition get() = Sun.position(project.latitude, Sun.midMonthDay(sunMonth), sunHour)
+
+    private var patchCache: Triple<Project, SunPosition, List<LightPatch>>? = null
+    private var hoursCache: Triple<Project, Int, List<RoomSun>>? = null
+
+    /** Patches of sunlight on the floor of the open floor, empty unless [sunlight]. */
+    val lightPatches: List<LightPatch>
+        get() {
+            if (!sunlight) return emptyList()
+            val sun = sunPosition
+            patchCache?.let { (p, s, list) -> if (p === project && s == sun) return list }
+            return Sun.patches(project, sun).also { patchCache = Triple(project, sun, it) }
+        }
+
+    /** Hours of direct sun per room in the middle of [sunMonth]. */
+    val roomSun: List<RoomSun>
+        get() {
+            hoursCache?.let { (p, m, list) -> if (p === project && m == sunMonth) return list }
+            return Sun.hours(project, Sun.midMonthDay(sunMonth)).also { hoursCache = Triple(project, sunMonth, it) }
+        }
+
+    fun showSunlight() {
+        selection = null
+        multiSelect = false
+        group = emptySet()
+        checking = false
+        sunlight = true
+    }
+
+    fun stopSunlight() {
+        sunlight = false
+    }
+
+    fun setSunTime(month: Int, hour: Double) {
+        sunMonth = month.coerceIn(1, 12)
+        sunHour = hour.coerceIn(0.0, 24.0)
+    }
+
+    /** Turns the north arrow by [degrees] (clockwise). */
+    fun rotateNorth(degrees: Double) = commit(project.copy(north = (project.north + degrees).mod(360.0)))
+
+    fun setLatitude(latitude: Double) = commit(project.copy(latitude = latitude.coerceIn(-66.0, 66.0)))
 
     // ---------------- Versions ----------------
 

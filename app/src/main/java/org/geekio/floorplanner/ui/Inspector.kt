@@ -79,6 +79,10 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
         IssuesPanel(vm)
         return
     }
+    if (vm.sunlight && vm.selection == null) {
+        SunPanel(vm, openDialog)
+        return
+    }
     val sel = vm.selection ?: return
     val p = vm.project
     val upm = p.scale.unitsPerMeter
