@@ -295,4 +295,8 @@
     <string name="lock_item">Lock in place</string>
     <string name="unlock_item">Unlock</string>
     <string name="hint_item_locked">This item is locked. Tap the lock to move it again.</string>
+    <string name="furnish_as">Furnish automatically as:</string>
+    <string name="msg_furnished">Furniture added. Move or delete pieces as you like.</string>
+    <string name="msg_furnish_partly">Furniture added; some pieces didn\'t fit and were left out.</string>
+    <string name="msg_furnish_none">Nothing more fits in this room.</string>
 </resources>

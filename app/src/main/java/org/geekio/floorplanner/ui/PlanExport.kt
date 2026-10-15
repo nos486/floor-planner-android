@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.Floors
+import org.geekio.floorplanner.core.Jalali
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.UnitSystem
@@ -121,7 +122,12 @@ object PlanExport {
             val dark = Color(0xFF1F2937)
             val grey = Color(0xFF6B7280)
             text(tm, title, Offset(margin, margin), 18.sp, dark, FontWeight.Bold, planW)
-            val date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date())
+            val date = if (java.util.Locale.getDefault().language == "fa") {
+                val now = java.util.Calendar.getInstance()
+                Jalali.format(Jalali.fromGregorian(now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH) + 1, now.get(java.util.Calendar.DAY_OF_MONTH)))
+            } else {
+                DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date())
+            }
             text(
                 tm, date + "  ·  " + context.getString(R.string.total_area, Units.area(p.totalAreaM2, u), p.rooms.size),
                 Offset(margin, margin + 24f), 10.sp, grey, FontWeight.Normal, planW,

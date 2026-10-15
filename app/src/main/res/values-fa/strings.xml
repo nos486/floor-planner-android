@@ -295,4 +295,8 @@
     <string name="lock_item">قفل کردن</string>
     <string name="unlock_item">باز کردن قفل</string>
     <string name="hint_item_locked">این شیء قفل است. برای جابجا کردن، روی قفل بزنید.</string>
+    <string name="furnish_as">چیدمان خودکار به عنوان:</string>
+    <string name="msg_furnished">وسایل چیده شد. هر کدام را خواستید جابجا یا حذف کنید.</string>
+    <string name="msg_furnish_partly">وسایل چیده شد؛ چند تکه جا نشد و اضافه نشد.</string>
+    <string name="msg_furnish_none">چیز دیگری در این اتاق جا نمی‌شود.</string>
 </resources>

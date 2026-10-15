@@ -6,15 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -34,14 +34,15 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,6 +65,7 @@ import org.geekio.floorplanner.core.Issue
 import org.geekio.floorplanner.core.IssueKind
 import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.Layer
+import org.geekio.floorplanner.core.RoomKey
 import org.geekio.floorplanner.core.UnitSystem
 import org.geekio.floorplanner.core.Units
 import org.geekio.floorplanner.core.Walls
@@ -259,6 +261,19 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                             onClick = { vm.setRoomFloor(room.id, m) },
                             label = { Text(stringResource(materialName(m))) },
                         )
+                    }
+                }
+                Text(
+                    stringResource(R.string.furnish_as),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (key in RoomKey.entries) {
+                        AssistChip(onClick = { vm.autoFurnish(room.id, key) }, label = { Text(stringResource(roomKeyName(key))) })
                     }
                 }
             }

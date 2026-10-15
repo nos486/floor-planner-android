@@ -6,57 +6,59 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import org.geekio.floorplanner.R
-import org.geekio.floorplanner.core.Backgrounds
-import org.geekio.floorplanner.core.Compare
-import org.geekio.floorplanner.core.Dimensions
-import org.geekio.floorplanner.core.Issue
-import org.geekio.floorplanner.core.LightPatch
-import org.geekio.floorplanner.core.RoomSun
-import org.geekio.floorplanner.core.Sun
-import org.geekio.floorplanner.core.Samples
-import org.geekio.floorplanner.core.SampleText
-import org.geekio.floorplanner.core.SunPosition
-import org.geekio.floorplanner.core.PlanCheck
-import org.geekio.floorplanner.core.PlanDiff
-import org.geekio.floorplanner.core.Floors
-import org.geekio.floorplanner.core.Furniture
-import org.geekio.floorplanner.core.GroupOps
-import org.geekio.floorplanner.core.FurnitureType
-import org.geekio.floorplanner.core.Kind
-import org.geekio.floorplanner.core.Layer
-import org.geekio.floorplanner.core.Layers
-import org.geekio.floorplanner.core.P
-import org.geekio.floorplanner.core.PlanOps
-import org.geekio.floorplanner.core.ProjectEntry
-import org.geekio.floorplanner.core.ProjectIO
-import org.geekio.floorplanner.core.ProjectStore
-import org.geekio.floorplanner.core.Selection
-import org.geekio.floorplanner.core.SnapOptions
-import org.geekio.floorplanner.core.SnapType
-import org.geekio.floorplanner.core.generateId
-import org.geekio.floorplanner.core.roundTo
-import org.geekio.floorplanner.core.Snapper
-import org.geekio.floorplanner.core.UnitSystem
-import org.geekio.floorplanner.core.Walls
-import org.geekio.floorplanner.model.Costs
-import org.geekio.floorplanner.model.Project
-import org.geekio.floorplanner.model.Wall
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
+import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.AutoFurnish
+import org.geekio.floorplanner.core.Backgrounds
+import org.geekio.floorplanner.core.Compare
+import org.geekio.floorplanner.core.Dimensions
+import org.geekio.floorplanner.core.Floors
+import org.geekio.floorplanner.core.Furniture
+import org.geekio.floorplanner.core.FurnitureType
+import org.geekio.floorplanner.core.GroupOps
+import org.geekio.floorplanner.core.Issue
+import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
+import org.geekio.floorplanner.core.Layers
+import org.geekio.floorplanner.core.LightPatch
+import org.geekio.floorplanner.core.P
+import org.geekio.floorplanner.core.PlanCheck
+import org.geekio.floorplanner.core.PlanDiff
+import org.geekio.floorplanner.core.PlanOps
+import org.geekio.floorplanner.core.ProjectEntry
+import org.geekio.floorplanner.core.ProjectIO
+import org.geekio.floorplanner.core.ProjectStore
+import org.geekio.floorplanner.core.RoomKey
+import org.geekio.floorplanner.core.RoomSun
+import org.geekio.floorplanner.core.SampleText
+import org.geekio.floorplanner.core.Samples
+import org.geekio.floorplanner.core.Selection
+import org.geekio.floorplanner.core.SnapOptions
+import org.geekio.floorplanner.core.SnapType
+import org.geekio.floorplanner.core.Snapper
+import org.geekio.floorplanner.core.Sun
+import org.geekio.floorplanner.core.SunPosition
+import org.geekio.floorplanner.core.UnitSystem
+import org.geekio.floorplanner.core.Walls
+import org.geekio.floorplanner.core.generateId
+import org.geekio.floorplanner.core.roundTo
+import org.geekio.floorplanner.model.Costs
+import org.geekio.floorplanner.model.Project
+import org.geekio.floorplanner.model.Wall
 
 enum class Tool {
     SELECT, WALL, DOOR, WINDOW, MEASURE, TEXT,
@@ -773,6 +775,17 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun setRoomColor(id: String, color: String?) = commit(PlanOps.setRoomColor(project, id, color))
 
     fun setRoomFloor(id: String, floor: String?) = commit(PlanOps.setRoomFloor(project, id, floor))
+
+    /** Fills the room with a standard set of furniture for [key] (see AutoFurnish). */
+    fun autoFurnish(roomId: String, key: RoomKey) {
+        val r = AutoFurnish.furnish(project, roomId, key)
+        commit(r.project)
+        message = when {
+            r.added.isEmpty() -> R.string.msg_furnish_none
+            r.skipped.isNotEmpty() -> R.string.msg_furnish_partly
+            else -> R.string.msg_furnished
+        }
+    }
 
     // ---------------- Floors ----------------
 
