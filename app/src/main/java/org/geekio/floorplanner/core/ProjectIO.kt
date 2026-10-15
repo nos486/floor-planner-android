@@ -100,7 +100,7 @@ object ProjectIO {
     /** Every point the plan covers (walls and furniture corners), used to frame views and exports. */
     fun extentPoints(p: Project): List<P> = p.walls.flatMap { listOf(it.a, it.b) } + p.items.flatMap { Furniture.corners(it) }
 
-    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC): String {
+    fun toSvg(p: Project, units: UnitSystem = UnitSystem.METRIC, showDimensions: Boolean = true): String {
         val pts = extentPoints(p)
         val margin = 100.0
         val minX = (pts.minOfOrNull { it.x } ?: 0.0) - margin
@@ -161,13 +161,13 @@ object ProjectIO {
             }
         }
         for (wall in p.walls) {
-            if (wall.length < 40) continue
+            if (wall.length < 40 || !showDimensions) continue
             val mid = (wall.a + wall.b) * 0.5
             val off = mid + (wall.b - wall.a).normalized().perp() * (wall.thickness / 2 + 14)
             val label = esc(Units.length(wall.length / upm, units, Locale.US))
             sb.append("""<text x="${n(off.x)}" y="${n(off.y)}" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">$label</text>""").append('\n')
         }
-        for (g in Dimensions.overall(p, 50.0) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
+        for (g in (if (showDimensions) Dimensions.overall(p, 50.0) else emptyList()) + p.dimensions.mapNotNull { Dimensions.geometry(it) }) {
             sb.append(svgDimension(g, upm, units)).append('\n')
         }
         for (l in p.labels) {

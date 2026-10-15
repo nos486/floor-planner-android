@@ -17,6 +17,8 @@ import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.GroupOps
 import org.geekio.floorplanner.core.FurnitureType
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
+import org.geekio.floorplanner.core.Layers
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.ProjectEntry
@@ -63,6 +65,7 @@ data class Settings(
     /** Text height of new labels, in cm. */
     val labelSize: Double = 25.0,
     val units: UnitSystem = UnitSystem.METRIC,
+    val hiddenLayers: Set<Layer> = emptySet(),
 )
 
 class PlanViewModel(app: Application) : AndroidViewModel(app) {
@@ -136,6 +139,8 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             windowWidth = dbl("windowWidth", d.windowWidth),
             labelSize = dbl("labelSize", d.labelSize),
             units = runCatching { UnitSystem.valueOf(p.getString("units", null) ?: "") }.getOrDefault(d.units),
+            hiddenLayers = p.getStringSet("hiddenLayers", emptySet()).orEmpty()
+                .mapNotNull { name -> Layer.entries.firstOrNull { it.name == name } }.toSet(),
         )
     }
 
@@ -151,6 +156,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             ?.putFloat("windowWidth", s.windowWidth.toFloat())
             ?.putFloat("labelSize", s.labelSize.toFloat())
             ?.putString("units", s.units.name)
+            ?.putStringSet("hiddenLayers", s.hiddenLayers.map { it.name }.toSet())
             ?.apply()
     }
 
@@ -298,6 +304,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     fun setEstimateInputs(height: Double, costs: Costs) = commit(project.copy(wallHeight = height, costs = costs))
 
     fun updateSettings(s: Settings) {
+        if (s.hiddenLayers != settings.hiddenLayers) {
+            selection = null
+            group = emptySet()
+        }
         settings = s
         saveSettings(s)
     }
@@ -337,7 +347,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectAll() {
-        group = GroupOps.inBox(project, P(-1e9, -1e9), P(1e9, 1e9))
+        group = GroupOps.inBox(shown, P(-1e9, -1e9), P(1e9, 1e9))
     }
 
     fun duplicateGroup() {
@@ -471,7 +481,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Viewport ----------------
 
-    fun view() = PlanView(project, pan, zoom, settings, selection, draft, group, Floors.below(project))
+    /** The project without its hidden layers: what is drawn, exported and can be tapped. */
+    val shown: Project get() = Layers.visible(project, settings.hiddenLayers)
+
+    fun view() = PlanView(shown, pan, zoom, settings, selection, draft, group, Floors.below(project))
 
     fun toWorld(s: Offset) = P(((s.x - pan.x) / zoom).toDouble(), ((s.y - pan.y) / zoom).toDouble())
     fun toScreen(p: P) = Offset((p.x * zoom).toFloat() + pan.x, (p.y * zoom).toFloat() + pan.y)
@@ -544,11 +557,11 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
         val w = toWorld(screen)
         when (tool) {
             Tool.SELECT -> if (multiSelect) {
-                PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }?.let { m ->
+                PlanOps.hit(shown, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }?.let { m ->
                     group = if (m in group) group - m else group + m
                 }
             } else {
-                selection = PlanOps.hit(project, w, worldTol(HIT_DP))
+                selection = PlanOps.hit(shown, w, worldTol(HIT_DP))
             }
             Tool.WALL -> message = R.string.hint_wall
             Tool.MEASURE -> message = R.string.hint_measure
@@ -586,7 +599,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun groupDragStart(w: P): DragOp {
-        val hit = PlanOps.hit(project, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }
+        val hit = PlanOps.hit(shown, w, worldTol(HIT_DP))?.let { GroupOps.member(project, it) }
         if (hit != null && hit in group) return DragOp.MoveGroup(project, w)
         draft = Draft.BoxDraft(w, w)
         return DragOp.BoxSelect(w)
@@ -619,15 +632,15 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
                 return DragOp.SlideOpening(project, hit.kind, hit.id, o.offset - along)
             }
         }
-        PlanOps.hitLabel(project, w, tol)?.let { l ->
+        PlanOps.hitLabel(shown, w, tol)?.let { l ->
             selection = Selection(Kind.LABEL, l.id)
             return DragOp.MoveLabel(project, l.id, w)
         }
-        Dimensions.hit(project, w, tol)?.let { d ->
+        Dimensions.hit(shown, w, tol)?.let { d ->
             selection = Selection(Kind.DIMENSION, d.id)
             return DragOp.MoveDimension(project, d.id)
         }
-        PlanOps.hitItem(project, w)?.let { item ->
+        PlanOps.hitItem(shown, w)?.let { item ->
             selection = Selection(Kind.ITEM, item.id)
             return DragOp.MoveItem(project, item.id, P(item.x, item.y) - w)
         }
@@ -732,7 +745,7 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
             is DragOp.MoveLabel -> commit(project, before = op.origin)
             is DragOp.MoveGroup -> commit(project, before = op.origin)
             is DragOp.BoxSelect -> {
-                (draft as? Draft.BoxDraft)?.let { group = group + GroupOps.inBox(project, it.a, it.b) }
+                (draft as? Draft.BoxDraft)?.let { group = group + GroupOps.inBox(shown, it.a, it.b) }
                 draft = null
             }
             is DragOp.DrawArrow -> {

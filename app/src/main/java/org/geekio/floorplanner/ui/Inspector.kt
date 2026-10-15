@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import org.geekio.floorplanner.R
 import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.UnitSystem
 import org.geekio.floorplanner.core.Units
 
@@ -347,6 +348,39 @@ fun SettingsDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
+}
+
+@Composable
+fun LayersDialog(vm: PlanViewModel, onDismiss: () -> Unit) {
+    val s = vm.settings
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.layers)) },
+        text = {
+            Column {
+                for (layer in Layer.entries) {
+                    SwitchRow(stringResource(layerName(layer)), layer !in s.hiddenLayers) { on ->
+                        vm.updateSettings(s.copy(hiddenLayers = if (on) s.hiddenLayers - layer else s.hiddenLayers + layer))
+                    }
+                }
+                Text(
+                    stringResource(R.string.layers_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+fun layerName(l: Layer): Int = when (l) {
+    Layer.FURNITURE -> R.string.layer_furniture
+    Layer.ELECTRICAL -> R.string.cat_electrical
+    Layer.PLUMBING -> R.string.cat_plumbing
+    Layer.DIMENSIONS -> R.string.layer_dimensions
+    Layer.LABELS -> R.string.layer_labels
 }
 
 @Composable

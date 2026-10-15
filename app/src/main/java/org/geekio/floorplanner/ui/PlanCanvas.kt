@@ -32,6 +32,7 @@ import org.geekio.floorplanner.core.FloorPatterns
 import org.geekio.floorplanner.core.Furniture
 import org.geekio.floorplanner.core.FurnitureCategory
 import org.geekio.floorplanner.core.Kind
+import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.P
 import org.geekio.floorplanner.core.PlanOps
 import org.geekio.floorplanner.core.Selection
@@ -300,8 +301,9 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
     }
 
     // ----- Screen-space overlays -----
-    drawDimensions(v, tm, colors)
-    if (v.settings.showOverall) {
+    val dims = Layer.DIMENSIONS !in v.settings.hiddenLayers
+    if (dims) drawDimensions(v, tm, colors)
+    if (dims && v.settings.showOverall) {
         for (g in Dimensions.overall(project, (34.dp.toPx() / zoom).toDouble())) {
             drawDimensionLine(v, g, tm, colors.dim, colors)
         }

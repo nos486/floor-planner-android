@@ -177,4 +177,9 @@
     <string name="f_water_heater">Water heater</string>
     <string name="f_boiler">Wall boiler</string>
     <string name="f_radiator">Radiator</string>
+    <string name="layers">Layers</string>
+    <string name="layer_furniture">Furniture</string>
+    <string name="layer_dimensions">Measurements</string>
+    <string name="layer_labels">Text and arrows</string>
+    <string name="layers_note">Hidden layers are also left out of PNG, PDF and SVG exports.</string>
 </resources>

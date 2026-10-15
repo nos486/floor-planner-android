@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import org.geekio.floorplanner.R
+import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.ProjectIO
 import org.geekio.floorplanner.core.Units
 import kotlinx.coroutines.Dispatchers
@@ -112,7 +113,7 @@ fun PlanScreen(vm: PlanViewModel) {
         write(it, vm.exportJson())
     }
     val saveSvg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/svg+xml")) {
-        write(it, ProjectIO.toSvg(vm.project, vm.settings.units))
+        write(it, ProjectIO.toSvg(vm.shown, vm.settings.units, Layer.DIMENSIONS !in vm.settings.hiddenLayers))
     }
 
     fun saveBytes(uri: Uri?, render: () -> ByteArray) {
@@ -128,7 +129,8 @@ fun PlanScreen(vm: PlanViewModel) {
         }
     }
 
-    val project = vm.project
+    // Exports leave out hidden layers.
+    val project = vm.shown
     val settings = vm.settings
     val savePng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
         saveBytes(it) { PlanExport.png(context, project, settings) }
@@ -236,6 +238,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.export)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Export
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
+                                menuOpen = false; dialog = ScreenDialog.Layers
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.materials)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Materials
                             })
@@ -326,6 +331,7 @@ fun PlanScreen(vm: PlanViewModel) {
         }
         ScreenDialog.Settings -> SettingsDialog(vm) { dialog = null }
         ScreenDialog.Materials -> EstimateDialog(vm) { dialog = null }
+        ScreenDialog.Layers -> LayersDialog(vm) { dialog = null }
         ScreenDialog.View3D -> ThreeDView(vm.project) { dialog = null }
         ScreenDialog.Share -> ChoiceDialog(
             stringResource(R.string.share),
@@ -363,6 +369,7 @@ sealed interface ScreenDialog {
     data object NewProject : ScreenDialog
     data object Settings : ScreenDialog
     data object Materials : ScreenDialog
+    data object Layers : ScreenDialog
     data object View3D : ScreenDialog
     data object Share : ScreenDialog
     data object Export : ScreenDialog

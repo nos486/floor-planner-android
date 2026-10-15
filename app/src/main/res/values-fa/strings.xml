@@ -177,4 +177,9 @@
     <string name="f_water_heater">آبگرمکن</string>
     <string name="f_boiler">پکیج</string>
     <string name="f_radiator">رادیاتور</string>
+    <string name="layers">لایه‌ها</string>
+    <string name="layer_furniture">مبلمان</string>
+    <string name="layer_dimensions">اندازه‌ها</string>
+    <string name="layer_labels">متن و فلش</string>
+    <string name="layers_note">لایه‌های خاموش در خروجی PNG و PDF و SVG هم نمی‌آیند.</string>
 </resources>
