@@ -182,4 +182,16 @@
     <string name="layer_dimensions">اندازه‌ها</string>
     <string name="layer_labels">متن و فلش</string>
     <string name="layers_note">لایه‌های خاموش در خروجی PNG و PDF و SVG هم نمی‌آیند.</string>
+    <string name="full_height">تمام‌قد</string>
+    <string name="low_wall">دیوار کوتاه</string>
+    <string name="wall_height">ارتفاع</string>
+    <string name="door_single">یک‌لنگه</string>
+    <string name="door_double">دولنگه</string>
+    <string name="door_sliding">کشویی</string>
+    <string name="cat_structure">سازه</string>
+    <string name="f_column_square">ستون چهارگوش</string>
+    <string name="f_column_round">ستون گرد</string>
+    <string name="f_stairs">پله</string>
+    <string name="f_spiral_stairs">پله گرد</string>
+    <string name="f_fireplace">شومینه</string>
 </resources>

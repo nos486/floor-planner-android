@@ -73,6 +73,7 @@ object Scene3D {
         FurnitureCategory.KITCHEN to 0xFFD3CEC2,
         FurnitureCategory.BATHROOM to 0xFFE6F0F4,
         FurnitureCategory.PLUMBING to 0xFFE6F0F4,
+        FurnitureCategory.STRUCTURE to 0xFFD9D6CF,
     )
 
     /** Furniture height in cm, by catalog key. */
@@ -93,6 +94,8 @@ object Scene3D {
         "bathtub" -> 55.0
         "radiator" -> 60.0
         "water_heater" -> 150.0
+        "spiral_stairs" -> 100.0
+        "fireplace" -> 110.0
         else -> 75.0
     }
 
@@ -105,10 +108,14 @@ object Scene3D {
             val c = FloorPatterns.parseColor(FloorPatterns.colorFor(room.color, i)) ?: 0xFFDDDDDD
             faces += Face(poly.map { V3(it.x, it.y, 0.0) }, blend(c, 0xFFFFFFFF, if (room.color != null) 0.25 else 0.6), FaceKind.FLOOR)
         }
-        for (wall in p.walls) wallFaces(p, wall, height, faces)
+        for (wall in p.walls) wallFaces(p, wall, minOf(wall.height ?: height, height), faces)
         for (item in p.items) {
             if (Furniture.isFixture(item) && item.type != "radiator" && item.type != "water_heater") continue
-            itemFaces(item, faces)
+            when (item.type) {
+                "stairs" -> stairFaces(item, p.wallHeight, faces)
+                "column_square", "column_round" -> itemFaces(item, height, faces)
+                else -> itemFaces(item, itemHeight(item.type), faces)
+            }
         }
         return faces
     }
@@ -182,8 +189,29 @@ object Scene3D {
     private fun quad(a: P, b: P, z0: Double, z1: Double, color: Long) =
         Face(listOf(V3(a.x, a.y, z0), V3(b.x, b.y, z0), V3(b.x, b.y, z1), V3(a.x, a.y, z1)), color, FaceKind.WALL)
 
-    private fun itemFaces(item: org.geekio.floorplanner.model.Item, out: MutableList<Face>) {
-        val h = itemHeight(item.type)
+    /** Straight stairs as a run of steps rising towards the back of the item to the full storey height. */
+    private fun stairFaces(item: org.geekio.floorplanner.model.Item, storey: Double, out: MutableList<Face>) {
+        val n = maxOf(2, Math.round(item.depth / Furniture.STEP_DEPTH).toInt())
+        val color = categoryColor.getValue(FurnitureCategory.STRUCTURE)
+        for (i in 0 until n) {
+            val y0 = item.depth / 2 - item.depth * (i + 1) / n
+            val y1 = item.depth / 2 - item.depth * i / n
+            val outline = listOf(P(-item.width / 2, y0), P(item.width / 2, y0), P(item.width / 2, y1), P(-item.width / 2, y1))
+                .map { Furniture.toWorld(item, it) }
+            prism(outline, storey * (i + 1) / n, color, out)
+        }
+    }
+
+    private fun prism(outline: List<P>, h: Double, color: Long, out: MutableList<Face>) {
+        for (i in outline.indices) {
+            val a = outline[i]
+            val b = outline[(i + 1) % outline.size]
+            out += Face(listOf(V3(a.x, a.y, 0.0), V3(b.x, b.y, 0.0), V3(b.x, b.y, h), V3(a.x, a.y, h)), color, FaceKind.ITEM)
+        }
+        out += Face(outline.map { V3(it.x, it.y, h) }, blend(color, 0xFFFFFFFF, 0.25), FaceKind.ITEM_TOP)
+    }
+
+    private fun itemFaces(item: org.geekio.floorplanner.model.Item, h: Double, out: MutableList<Face>) {
         val color = Furniture.type(item.type)?.category?.let { categoryColor[it] } ?: 0xFFB9A48C
         val solids = Furniture.shapes(item).filter {
             (it is Prim.Rect && it.fill) || (it is Prim.Circle && it.fill)
@@ -194,12 +222,7 @@ object Scene3D {
                 is Prim.Circle -> (0 until 12).map { k -> val a = Math.PI * 2 * k / 12; P(prim.cx + cos(a) * prim.r, prim.cy + sin(a) * prim.r) }
                 is Prim.Line -> continue
             }.map { Furniture.toWorld(item, it) }
-            for (i in outline.indices) {
-                val a = outline[i]
-                val b = outline[(i + 1) % outline.size]
-                out += Face(listOf(V3(a.x, a.y, 0.0), V3(b.x, b.y, 0.0), V3(b.x, b.y, h), V3(a.x, a.y, h)), color, FaceKind.ITEM)
-            }
-            out += Face(outline.map { V3(it.x, it.y, h) }, blend(color, 0xFFFFFFFF, 0.25), FaceKind.ITEM_TOP)
+            prism(outline, h, color, out)
         }
     }
 

@@ -244,6 +244,33 @@ object PlanOps {
         return DoorSwing(hinge, strike, hinge + swingDir * radius, radius, along.cross(swingDir) > 0)
     }
 
+    /** The swinging leaves of [door]: one, two for a double door, none for a sliding door. */
+    fun doorLeaves(g: OpeningGeometry, door: Door): List<DoorSwing> = when (door.style) {
+        Door.SLIDING -> emptyList()
+        Door.DOUBLE -> {
+            val swingDir = g.normal * (if (door.side < 0) -1.0 else 1.0)
+            val r = g.start.dist(g.end) / 2
+            listOf(g.start to g.center, g.end to g.center).map { (hinge, strike) ->
+                val along = (strike - hinge).normalized()
+                DoorSwing(hinge, strike, hinge + swingDir * r, r, along.cross(swingDir) > 0)
+            }
+        }
+        else -> listOf(doorSwing(g, door))
+    }
+
+    /** The two panels of a sliding door, each a little over half the opening, on either side of the wall's centre line. */
+    fun slidingPanels(g: OpeningGeometry): List<Pair<P, P>> {
+        val w = g.start.dist(g.end)
+        val off = g.normal * (g.wallThickness / 6)
+        return listOf(
+            (g.start + off) to (g.start + g.dir * (w * 0.55) + off),
+            (g.end - g.dir * (w * 0.55) - off) to (g.end - off),
+        )
+    }
+
+    fun setWallHeight(p: Project, wallId: String, height: Double?) =
+        p.copy(walls = p.walls.map { if (it.id == wallId) it.copy(height = height) else it })
+
     // --- Hit testing (all values in world units) ---
 
     fun hitOpening(p: Project, point: P, tolerance: Double): Selection? {

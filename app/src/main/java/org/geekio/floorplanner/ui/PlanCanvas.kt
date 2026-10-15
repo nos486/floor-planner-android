@@ -269,8 +269,10 @@ fun DrawScope.drawPlan(v: PlanView, colors: PlanColors, tm: TextMeasurer) {
         // Walls
         for (wall in project.walls) {
             val isSel = v.isSelected(Kind.WALL, wall.id)
+            val base = if (isSel) colors.selected else colors.wall
             drawLine(
-                if (isSel) colors.selected else colors.wall,
+                // Low walls are drawn lighter.
+                if (wall.height != null) base.copy(alpha = base.alpha * 0.45f) else base,
                 wall.a.o(), wall.b.o(),
                 strokeWidth = wall.thickness.toFloat(),
                 cap = StrokeCap.Round,
@@ -359,18 +361,22 @@ fun DrawScope.drawArrow(from: Offset, tip: Offset, color: Color, width: Float, h
 private fun DrawScope.drawDoor(v: PlanView, door: Door, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {
     val wall = v.project.wall(door.wallId) ?: return
     val g = PlanOps.openingGeometry(wall, door) ?: return
-    val s = PlanOps.doorSwing(g, door)
     val color = if (selected) c.selected else c.wall
     drawLine(if (ghost) c.selected.copy(alpha = 0.4f) else c.background, g.start.o(), g.end.o(), (wall.thickness + 2).toFloat())
-    drawLine(color, s.hinge.o(), s.leafEnd.o(), strokeWidth = maxOf(3f, 2 * px))
-    val r = s.radius.toFloat()
-    val along = s.strike - s.hinge
-    val start = Math.toDegrees(atan2(along.y, along.x)).toFloat()
-    drawArc(
-        color, start, if (s.clockwise) 90f else -90f, useCenter = false,
-        topLeft = s.hinge.o() - Offset(r, r), size = Size(2 * r, 2 * r),
-        style = Stroke(width = 1.5f * px, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6 * px, 4 * px))),
-    )
+    for (s in PlanOps.doorLeaves(g, door)) {
+        drawLine(color, s.hinge.o(), s.leafEnd.o(), strokeWidth = maxOf(3f, 2 * px))
+        val r = s.radius.toFloat()
+        val along = s.strike - s.hinge
+        val start = Math.toDegrees(atan2(along.y, along.x)).toFloat()
+        drawArc(
+            color, start, if (s.clockwise) 90f else -90f, useCenter = false,
+            topLeft = s.hinge.o() - Offset(r, r), size = Size(2 * r, 2 * r),
+            style = Stroke(width = 1.5f * px, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6 * px, 4 * px))),
+        )
+    }
+    if (door.style == Door.SLIDING) {
+        for ((a, b) in PlanOps.slidingPanels(g)) drawLine(color, a.o(), b.o(), strokeWidth = maxOf(3f, 2 * px))
+    }
 }
 
 private fun DrawScope.drawWindow(v: PlanView, win: PlanWindow, selected: Boolean, c: PlanColors, px: Float, ghost: Boolean) {

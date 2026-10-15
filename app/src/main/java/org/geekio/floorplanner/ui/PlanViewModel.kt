@@ -390,6 +390,10 @@ class PlanViewModel(app: Application) : AndroidViewModel(app) {
 
     fun flipDoorSide(id: String) = commit(PlanOps.updateDoor(project, id) { it.copy(side = if (it.side < 0) 1 else -1) })
 
+    fun setDoorStyle(id: String, style: String?) = commit(PlanOps.updateDoor(project, id) { it.copy(style = style) })
+
+    fun setWallHeight(id: String, height: Double?) = commit(PlanOps.setWallHeight(project, id, height))
+
     fun flipDoorHinge(id: String) = commit(PlanOps.updateDoor(project, id) { it.copy(flipped = !it.flipped) })
 
     fun renameRoom(id: String, name: String) = commit(PlanOps.renameRoom(project, id, name))

@@ -182,4 +182,16 @@
     <string name="layer_dimensions">Measurements</string>
     <string name="layer_labels">Text and arrows</string>
     <string name="layers_note">Hidden layers are also left out of PNG, PDF and SVG exports.</string>
+    <string name="full_height">Full height</string>
+    <string name="low_wall">Low wall</string>
+    <string name="wall_height">Height</string>
+    <string name="door_single">Single</string>
+    <string name="door_double">Double</string>
+    <string name="door_sliding">Sliding</string>
+    <string name="cat_structure">Structure</string>
+    <string name="f_column_square">Square column</string>
+    <string name="f_column_round">Round column</string>
+    <string name="f_stairs">Stairs</string>
+    <string name="f_spiral_stairs">Spiral stairs</string>
+    <string name="f_fireplace">Fireplace</string>
 </resources>

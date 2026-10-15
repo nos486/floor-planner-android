@@ -8,7 +8,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 enum class FurnitureCategory {
-    LIVING, BEDROOM, KITCHEN, BATHROOM, ELECTRICAL, PLUMBING;
+    LIVING, BEDROOM, KITCHEN, BATHROOM, STRUCTURE, ELECTRICAL, PLUMBING;
 
     /** Electrical and plumbing symbols: small, drawn on top and in their own colours. */
     val isFixture get() = this == ELECTRICAL || this == PLUMBING
@@ -55,6 +55,11 @@ object Furniture {
         FurnitureType("bathtub", FurnitureCategory.BATHROOM, 170.0, 75.0),
         FurnitureType("shower", FurnitureCategory.BATHROOM, 90.0, 90.0),
         FurnitureType("basin", FurnitureCategory.BATHROOM, 55.0, 45.0),
+        FurnitureType("column_square", FurnitureCategory.STRUCTURE, 30.0, 30.0),
+        FurnitureType("column_round", FurnitureCategory.STRUCTURE, 30.0, 30.0),
+        FurnitureType("stairs", FurnitureCategory.STRUCTURE, 100.0, 300.0),
+        FurnitureType("spiral_stairs", FurnitureCategory.STRUCTURE, 160.0, 160.0),
+        FurnitureType("fireplace", FurnitureCategory.STRUCTURE, 120.0, 50.0),
         FurnitureType("socket", FurnitureCategory.ELECTRICAL, 20.0, 12.0),
         FurnitureType("switch", FurnitureCategory.ELECTRICAL, 16.0, 12.0),
         FurnitureType("ceiling_light", FurnitureCategory.ELECTRICAL, 40.0, 40.0),
@@ -68,6 +73,9 @@ object Furniture {
         FurnitureType("boiler", FurnitureCategory.PLUMBING, 45.0, 35.0),
         FurnitureType("radiator", FurnitureCategory.PLUMBING, 100.0, 12.0),
     )
+
+    /** Depth of one stair tread in cm. */
+    const val STEP_DEPTH = 28.0
 
     fun isFixture(item: Item) = type(item.type)?.category?.isFixture == true
 
@@ -215,6 +223,23 @@ object Furniture {
             "bathtub" -> listOf(body, rect(l + 8, t + 8, w - 16, d - 16, minOf(w, d) * 0.3), Prim.Circle(l + 20, 0.0, 3.0, fill = true))
             "shower" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t), Prim.Circle(0.0, 0.0, 4.0, fill = true))
             "basin" -> listOf(body, rect(l + w * 0.15, t + d * 0.25, w * 0.7, d * 0.6, minOf(w, d) * 0.3), Prim.Circle(0.0, t + d * 0.12, 2.5, fill = true))
+            "column_square" -> listOf(body, Prim.Line(l, t, r, b), Prim.Line(l, b, r, t))
+            "column_round" -> listOf(Prim.Circle(0.0, 0.0, minOf(w, d) / 2, fill = true), Prim.Line(-minOf(w, d) * 0.35, -minOf(w, d) * 0.35, minOf(w, d) * 0.35, minOf(w, d) * 0.35))
+            "stairs" -> {
+                // Treads every ~28 cm, with an arrow pointing up the stairs (towards the back).
+                val n = maxOf(2, Math.round(d / STEP_DEPTH).toInt())
+                listOf(body) + (1 until n).map { i -> Prim.Line(l, t + d * i / n, r, t + d * i / n) } + listOf(
+                    Prim.Line(0.0, b - d * 0.08, 0.0, t + d * 0.06),
+                    Prim.Line(0.0, t + d * 0.06, -w * 0.12, t + d * 0.06 + w * 0.15),
+                    Prim.Line(0.0, t + d * 0.06, w * 0.12, t + d * 0.06 + w * 0.15),
+                )
+            }
+            "spiral_stairs" -> {
+                val rr = minOf(w, d) / 2
+                listOf(Prim.Circle(0.0, 0.0, rr, fill = true), Prim.Circle(0.0, 0.0, rr * 0.12, fill = true)) +
+                    (0 until 12).map { i -> val a = Math.PI * 2 * i / 12; Prim.Line(cos(a) * rr * 0.12, sin(a) * rr * 0.12, cos(a) * rr, sin(a) * rr) }
+            }
+            "fireplace" -> listOf(body, rect(l + w * 0.2, t + d * 0.25, w * 0.6, d * 0.75, 2.0), Prim.Line(l + w * 0.3, b, l + w * 0.5, t + d * 0.45), Prim.Line(l + w * 0.5, t + d * 0.45, l + w * 0.7, b))
             "socket" -> {
                 val rr = minOf(w / 2, d)
                 listOf(Prim.Circle(0.0, t, rr, fill = true), Prim.Line(-rr * 0.35, t + rr * 0.2, -rr * 0.35, t + rr * 0.6), Prim.Line(rr * 0.35, t + rr * 0.2, rr * 0.35, t + rr * 0.6))

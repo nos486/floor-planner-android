@@ -51,6 +51,8 @@ data class Wall(
     val id: String,
     val points: List<List<Double>>,
     val thickness: Double = 20.0,
+    /** Height of a low wall (counter, railing) in world units; null for a full-height wall. */
+    val height: Double? = null,
 ) {
     val a: P get() = P.of(points[0])
     val b: P get() = P.of(points[1])
@@ -82,7 +84,14 @@ data class Door(
     val flipped: Boolean = false,
     /** 1 or -1: which side of the wall the door swings to. */
     val side: Int = 1,
-) : Opening
+    /** null for a single swing door, or one of [Door.DOUBLE], [Door.SLIDING]. */
+    val style: String? = null,
+) : Opening {
+    companion object {
+        const val DOUBLE = "double"
+        const val SLIDING = "sliding"
+    }
+}
 
 @Serializable
 data class PlanWindow(

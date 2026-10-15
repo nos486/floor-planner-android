@@ -1,5 +1,6 @@
 package org.geekio.floorplanner.core
 
+import org.geekio.floorplanner.model.Door
 import org.geekio.floorplanner.model.Floor
 import org.geekio.floorplanner.model.Project
 import kotlinx.serialization.json.Json
@@ -140,16 +141,22 @@ object ProjectIO {
             sb.append("</g>\n")
         }
         for (wall in p.walls) {
-            sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
+            sb.append("""<line x1="${n(wall.a.x)}" y1="${n(wall.a.y)}" x2="${n(wall.b.x)}" y2="${n(wall.b.y)}" stroke="#2b2f36" stroke-opacity="${if (wall.height != null) "0.45" else "1"}" stroke-width="${n(wall.thickness)}" stroke-linecap="round"/>""").append('\n')
         }
         for (door in p.doors) {
             val wall = p.wall(door.wallId) ?: continue
             val g = PlanOps.openingGeometry(wall, door) ?: continue
-            val s = PlanOps.doorSwing(g, door)
             sb.append("""<line x1="${n(g.start.x)}" y1="${n(g.start.y)}" x2="${n(g.end.x)}" y2="${n(g.end.y)}" stroke="#ffffff" stroke-width="${n(wall.thickness + 2)}"/>""").append('\n')
-            sb.append("""<line x1="${n(s.hinge.x)}" y1="${n(s.hinge.y)}" x2="${n(s.leafEnd.x)}" y2="${n(s.leafEnd.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
-            val sweep = if (s.clockwise) 1 else 0
-            sb.append("""<path d="M ${n(s.strike.x)} ${n(s.strike.y)} A ${n(s.radius)} ${n(s.radius)} 0 0 $sweep ${n(s.leafEnd.x)} ${n(s.leafEnd.y)}" fill="none" stroke="#2b2f36" stroke-width="1.5" stroke-dasharray="6 4"/>""").append('\n')
+            for (s in PlanOps.doorLeaves(g, door)) {
+                sb.append("""<line x1="${n(s.hinge.x)}" y1="${n(s.hinge.y)}" x2="${n(s.leafEnd.x)}" y2="${n(s.leafEnd.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
+                val sweep = if (s.clockwise) 1 else 0
+                sb.append("""<path d="M ${n(s.strike.x)} ${n(s.strike.y)} A ${n(s.radius)} ${n(s.radius)} 0 0 $sweep ${n(s.leafEnd.x)} ${n(s.leafEnd.y)}" fill="none" stroke="#2b2f36" stroke-width="1.5" stroke-dasharray="6 4"/>""").append('\n')
+            }
+            if (door.style == Door.SLIDING) {
+                for ((a, b) in PlanOps.slidingPanels(g)) {
+                    sb.append("""<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}" stroke="#2b2f36" stroke-width="3"/>""").append('\n')
+                }
+            }
         }
         for (win in p.windows) {
             val wall = p.wall(win.wallId) ?: continue

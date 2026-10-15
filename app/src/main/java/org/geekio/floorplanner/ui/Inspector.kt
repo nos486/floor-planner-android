@@ -55,6 +55,7 @@ import org.geekio.floorplanner.core.Kind
 import org.geekio.floorplanner.core.Layer
 import org.geekio.floorplanner.core.UnitSystem
 import org.geekio.floorplanner.core.Units
+import org.geekio.floorplanner.model.Door
 
 /** Bottom panel with the properties of the selected wall / door / window / room. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +89,19 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
                     }
                 }
                 Stepper(stringResource(R.string.thickness), wall.thickness, 5.0, 5.0, 100.0, u) { vm.setWallThickness(wall.id, it) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = wall.height == null, onClick = { vm.setWallHeight(wall.id, null) },
+                        label = { Text(stringResource(R.string.full_height)) },
+                    )
+                    FilterChip(
+                        selected = wall.height != null, onClick = { vm.setWallHeight(wall.id, wall.height ?: 100.0) },
+                        label = { Text(stringResource(R.string.low_wall)) },
+                    )
+                }
+                wall.height?.let { h ->
+                    Stepper(stringResource(R.string.wall_height), h, 10.0, 20.0, 250.0, u) { vm.setWallHeight(wall.id, it) }
+                }
                 OutlinedButton(onClick = { vm.splitWall(wall.id) }) {
                     Icon(Icons.Filled.ContentCut, null)
                     Text(stringResource(R.string.split_wall), Modifier.padding(start = 8.dp))
@@ -99,14 +113,26 @@ fun Inspector(vm: PlanViewModel, openDialog: (ScreenDialog) -> Unit) {
             title = stringResource(R.string.door)
             body = {
                 Stepper(stringResource(R.string.width), door.width, 5.0, 30.0, 400.0, u) { vm.setOpeningWidth(Kind.DOOR, door.id, it) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { vm.flipDoorSide(door.id) }) {
-                        Icon(Icons.Filled.SwapVert, null)
-                        Text(stringResource(R.string.flip_side), Modifier.padding(start = 8.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((style, label) in listOf(null to R.string.door_single, Door.DOUBLE to R.string.door_double, Door.SLIDING to R.string.door_sliding)) {
+                        FilterChip(
+                            selected = door.style == style, onClick = { vm.setDoorStyle(door.id, style) },
+                            label = { Text(stringResource(label)) },
+                        )
                     }
-                    OutlinedButton(onClick = { vm.flipDoorHinge(door.id) }) {
-                        Icon(Icons.Filled.SwapHoriz, null)
-                        Text(stringResource(R.string.flip_hinge), Modifier.padding(start = 8.dp))
+                }
+                if (door.style != Door.SLIDING) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { vm.flipDoorSide(door.id) }) {
+                            Icon(Icons.Filled.SwapVert, null)
+                            Text(stringResource(R.string.flip_side), Modifier.padding(start = 8.dp))
+                        }
+                        if (door.style == null) {
+                            OutlinedButton(onClick = { vm.flipDoorHinge(door.id) }) {
+                                Icon(Icons.Filled.SwapHoriz, null)
+                                Text(stringResource(R.string.flip_hinge), Modifier.padding(start = 8.dp))
+                            }
+                        }
                     }
                 }
             }
