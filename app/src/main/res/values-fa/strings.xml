@@ -249,4 +249,6 @@
     <string name="buyer_note">متراژ مفید تا روی دیوارها اندازه گرفته می‌شود. متراژ ناخالص دیوارهای داخلی و بیرونی را هم حساب می‌کند؛ بالکن و مشاعات حساب نشده‌اند.</string>
     <string name="compare_homes">مقایسه خانه‌ها</string>
     <string name="compare_homes_hint">برای مقایسه قیمت هر متر، در هر نقشه از منو «خریدار خانه» قیمت را وارد کن.</string>
+    <string name="true_scale">اندازه واقعی (۱:۱)</string>
+    <string name="true_scale_on">اندازه واقعی</string>
 </resources>

@@ -249,4 +249,6 @@
     <string name="buyer_note">Usable area is measured to the wall faces. Gross area adds inner walls once and outer walls in full; balconies and shared areas are not included.</string>
     <string name="compare_homes">Compare homes</string>
     <string name="compare_homes_hint">Set a price in each plan (menu, Home buyer) to compare prices per m².</string>
+    <string name="true_scale">Actual size (1:1)</string>
+    <string name="true_scale_on">Actual size</string>
 </resources>

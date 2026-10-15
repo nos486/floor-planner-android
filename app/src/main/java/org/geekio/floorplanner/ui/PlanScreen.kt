@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.HighlightAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.ViewInAr
@@ -252,6 +255,9 @@ fun PlanScreen(vm: PlanViewModel) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.versions)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Versions
                             })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.true_scale)) }, onClick = {
+                                menuOpen = false; vm.showTrueScale()
+                            })
                             DropdownMenuItem(text = { Text(stringResource(R.string.layers)) }, onClick = {
                                 menuOpen = false; dialog = ScreenDialog.Layers
                             })
@@ -317,6 +323,16 @@ fun PlanScreen(vm: PlanViewModel) {
                     leadingIcon = { Icon(Icons.Filled.HighlightAlt, null, Modifier.size(FilterChipDefaults.IconSize)) },
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                     colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surface),
+                )
+            }
+            if (vm.isTrueScale) {
+                AssistChip(
+                    onClick = vm::fitToScreen,
+                    label = { Text(stringResource(R.string.true_scale_on)) },
+                    leadingIcon = { Icon(Icons.Filled.Straighten, null, Modifier.size(AssistChipDefaults.IconSize)) },
+                    trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.close), Modifier.size(AssistChipDefaults.IconSize)) },
+                    modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
+                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 )
             }
             CompareBanner(vm, Modifier.align(Alignment.BottomCenter).padding(12.dp))

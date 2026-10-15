@@ -582,9 +582,9 @@ private fun DrawScope.drawSunlight(vm: PlanViewModel, project: Project, tm: Text
         }
     }
 
-    // Compass in the top-left corner
+    // Compass in the top-left corner, below the select chip
     val r = 30.dp.toPx()
-    val c = Offset(16.dp.toPx() + r, 16.dp.toPx() + r)
+    val c = Offset(20.dp.toPx() + r, 64.dp.toPx() + r)
     drawCircle(colors.labelBg, r + 6.dp.toPx(), c)
     drawCircle(colors.dim, r, c, style = Stroke(1.dp.toPx()))
     val n = Sun.northVector(project)
